@@ -82,8 +82,9 @@ void printCharacterCodes(const ida::TextMatrix &B) {
 
     std::cout << "Character codes" << '\n';
 
+    //char may be signed: going through unsigned char prints the byte 0 ... 255 that the text matrix holds.
     for (const char character : B.getPaddedText())
-        std::cout << static_cast<int>(character) << " ";
+        std::cout << static_cast<int>(static_cast<unsigned char>(character)) << " ";
 
     std::cout << '\n';
 }

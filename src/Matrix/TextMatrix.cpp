@@ -9,6 +9,7 @@
 
 #include <cstddef>
 #include <stdexcept>
+#include <string>
 #include <utility>
 #include <vector>
 
@@ -63,9 +64,20 @@ std::string TextMatrix::readText(const MatrixData &values, int padding) {
     //Read the characters in the order they were laid out: column by column.
     for (int j = 0; j < static_cast<int>(values.front().size()); j++)
         for (const std::vector<long> &row : values)
-            text += static_cast<char>(row[j]);
+            text += TextMatrix::convertToCharacter(row[j]);
 
     return (text.substr(0, text.length() - static_cast<std::size_t>(padding)));
+}
+
+char TextMatrix::convertToCharacter(long value) {
+
+    //In GF(257) an element can be 256: a value outside the byte range means corrupted data, so it is reported
+    //instead of being silently truncated by the conversion to char.
+    if (value < 0 || value > TextMatrix::largestByteValue)
+        throw std::out_of_range("The decoded value " + std::to_string(value) + " is not a byte (0 ... " +
+                                std::to_string(TextMatrix::largestByteValue) + "): the encoded data is corrupted");
+
+    return (static_cast<char>(static_cast<unsigned char>(value)));
 }
 
 int TextMatrix::getPadding() const {

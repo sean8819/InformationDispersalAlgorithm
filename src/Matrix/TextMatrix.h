@@ -26,8 +26,18 @@ class TextMatrix final : public Matrix {
 
 private:
 
+    static constexpr long largestByteValue{255}; ///< The algorithm encodes bytes: every value is between 0 and 255.
+
     int padding;            ///< Number of null characters appended to the text so that it fills the matrix.
     std::string paddedText; ///< Text to encode, followed by the padding characters.
+
+    /**
+     * @brief Converts a decoded value back into the character it encodes.
+     * @param value Decoded value.
+     * @return The character whose byte is @p value.
+     * @throws std::out_of_range If @p value is not between 0 and 255.
+     */
+    [[nodiscard]] static char convertToCharacter(long value);
 
 public:
 
@@ -49,6 +59,7 @@ public:
      * @param values Character codes laid out by column, as in a TextMatrix.
      * @param padding Number of padding characters to remove from the end.
      * @return The text, without the padding.
+     * @throws std::out_of_range If a value is not between 0 and 255: only corrupted data can produce it.
      */
     [[nodiscard]] static std::string readText(const MatrixData &values, int padding);
 

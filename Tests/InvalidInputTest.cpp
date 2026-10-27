@@ -149,6 +149,26 @@ enum class Outcome {
 }
 
 /**
+ * @brief Reads the text out of decoded values and tells how it ended.
+ * @param values Decoded values, one vector for each row.
+ * @return The exception thrown, or Outcome::Accepted.
+ */
+[[nodiscard]] Outcome tryReadText(const ida::MatrixData &values) {
+
+    try {
+        static_cast<void>(ida::TextMatrix::readText(values, 0));
+    }
+    catch (const std::invalid_argument &) {
+        return (Outcome::InvalidArgument);
+    }
+    catch (const std::out_of_range &) {
+        return (Outcome::OutOfRange);
+    }
+
+    return (Outcome::Accepted);
+}
+
+/**
  * @brief Checks that the inverse rejects labels outside 0 ... n-1, a number of labels other than m and repeated labels.
  */
 void testInverseRejectsInvalidLabels() {
@@ -242,6 +262,19 @@ void testDecodeRejectsInvalidInverse() {
           "decode rejects an inverse for a fragment that does not exist");
 }
 
+/**
+ * @brief Checks that the text is read only from byte values 0 ... 255.
+ *
+ * A decoded value outside the byte range can only come from corrupted data
+ * (in GF(257) an element can be 256): it is reported, never truncated.
+ */
+void testReadTextRejectsValuesOutsideBytes() {
+
+    check(tryReadText(ida::MatrixData{{0}, {255}}) == Outcome::Accepted, "readText accepts the bytes 0 and 255");
+    check(tryReadText(ida::MatrixData{{72}, {256}}) == Outcome::OutOfRange, "readText rejects the value 256");
+    check(tryReadText(ida::MatrixData{{-1}, {72}}) == Outcome::OutOfRange, "readText rejects a negative value");
+}
+
 } //namespace
 
 /**
@@ -255,6 +288,7 @@ int main() {
     testEncodedMatrixRejectsNegativePadding();
     testEncodeRejectsInvalidMatrices();
     testDecodeRejectsInvalidInverse();
+    testReadTextRejectsValuesOutsideBytes();
 
     return (report("All invalid input tests passed"));
 }
