@@ -7,182 +7,158 @@
 
 #include "Matrix/InverseCodingMatrix.h"
 
-InverseCodingMatrix::InverseCodingMatrix(const CodingMatrix &codingMatrix, const std::vector<int> &labels) : Matrix() {
+#include <stdexcept>
+#include <utility>
 
-    this->field = codingMatrix.getField();
+#include "Field/Field.h"
+#include "Matrix/CodingMatrix.h"
 
-    //Remember the labels, so that decoding can check it uses the same fragments.
-    this->labels = labels;
+namespace ida {
 
-    //Initialize rows and columns. The matrix is square, with size equal to the length of a coding matrix row.
-    this->setRow(codingMatrix.getColumn());
-    this->setColumn(codingMatrix.getColumn());
+namespace {
 
-    int n = this->getRow();
+/**
+ * @brief Copies a square matrix without one of its rows and one of its columns.
+ * @param matrix Square matrix.
+ * @param removedRow Index of the row to leave out.
+ * @param removedColumn Index of the column to leave out.
+ * @return The (size - 1) x (size - 1) submatrix.
+ */
+[[nodiscard]] MatrixData removeRowAndColumn(const MatrixData &matrix, int removedRow, int removedColumn) {
 
-    //Initialize the decoding data matrix.
+    const int size{static_cast<int>(matrix.size())};
+    MatrixData subMatrix{};
 
-    this->inverseCodingMatrixData = MatrixData(n, std::vector<long>(n, 0));
+    for (int i = 0; i < size; i++) {
 
-    //Initialize the array with the coding matrix rows that will be used to build the decoding matrix.
+        if (i == removedRow)
+            continue;
 
-    this->fragmentsCodingMatrix = MatrixData(n, std::vector<long>(n, 0));
+        std::vector<long> subRow{};
 
-    for (int i = 0; i < n; i++)
-        for (int j = 0; j < n; j++)
-            this->fragmentsCodingMatrix[i][j] = codingMatrix.getCodingMatrix()[labels[i]][j];
+        for (int j = 0; j < size; j++)
+            if (j != removedColumn)
+                subRow.push_back(matrix[i][j]);
 
-}
-
-void InverseCodingMatrix::printMatrix(const std::string &label) const {
-
-    std::cout << label << std::endl;
-
-    for (int i = 0; i < this->getRow(); i++) {
-        for (int j = 0; j < this->getColumn(); j++)
-            std::cout << this->inverseCodingMatrixData[i][j] << " ";
-
-        std::cout << std::endl;
-
+        subMatrix.push_back(subRow);
     }
+
+    return (subMatrix);
 }
 
-long InverseCodingMatrix::calculateDeterminant(const MatrixData &matrix) const {
+/**
+ * @brief Computes the determinant by Laplace expansion along the first column.
+ * @param matrix Square matrix.
+ * @param field Field used for the arithmetic.
+ * @return The determinant.
+ */
+[[nodiscard]] long computeDeterminant(const MatrixData &matrix, const Field &field) {
 
-    int n = static_cast<int>(matrix.size());
+    const int size{static_cast<int>(matrix.size())};
 
-    long determinant = 0;
     //The determinant of the empty (0 x 0) matrix is 1: it is the minor of a 1 x 1 matrix.
-    if (n == 0)
+    if (size == 0)
         return (1);
-    else if (n == 1)
+
+    if (size == 1)
         return (matrix[0][0]);
-    else if (n == 2)
-        return (this->field->sub(this->field->mul(matrix[1][1], matrix[0][0]),
-                                 this->field->mul(matrix[0][1], matrix[1][0])));
-    else {
-        for (int row = 0; row < n; row++) {
-            MatrixData subMatrix(n - 1, std::vector<long>(n - 1, 0));
 
-            for (int i = 0; i < n - 1; i++)
-                for (int j = 0; j < n - 1; j++) {
-                    int subRow = (i < row ? i : i + 1);
-                    int subColumn = j + 1;
+    if (size == 2)
+        return (field.subtract(field.multiply(matrix[1][1], matrix[0][0]), field.multiply(matrix[0][1], matrix[1][0])));
 
-                    subMatrix[i][j] = matrix[subRow][subColumn];
-                }
+    long determinant{0};
 
-            if (row % 2 == 0)
-                determinant = this->field->add(determinant,
-                                               this->field->mul(matrix[row][0], this->calculateDeterminant(subMatrix)));
+    //The terms of the expansion have sign (-1)^row: the terms of the odd rows are subtracted.
+    for (int row = 0; row < size; row++) {
+        const long term{field.multiply(matrix[row][0], computeDeterminant(removeRowAndColumn(matrix, row, 0), field))};
+
+        if (row % 2 == 0)
+            determinant = field.add(determinant, term);
+        else
+            determinant = field.subtract(determinant, term);
+    }
+
+    return (determinant);
+}
+
+/**
+ * @brief Computes the adjugate matrix: the transpose of the matrix of the cofactors.
+ * @param matrix Square matrix.
+ * @param field Field used for the arithmetic.
+ * @return The adjugate of @p matrix.
+ */
+[[nodiscard]] MatrixData computeAdjugate(const MatrixData &matrix, const Field &field) {
+
+    const int size{static_cast<int>(matrix.size())};
+    MatrixData adjugate(size, std::vector<long>(size, 0));
+
+    for (int i = 0; i < size; i++)
+        for (int j = 0; j < size; j++) {
+            const long minorOfElement{computeDeterminant(removeRowAndColumn(matrix, i, j), field)};
+
+            //The cofactor is the minor with sign (-1)^(i+j): when i + j is odd, it is subtracted from zero.
+            //It goes to [j][i], because the adjugate is the transpose of the cofactor matrix.
+            if ((i + j) % 2 == 0)
+                adjugate[j][i] = minorOfElement;
             else
-                determinant = this->field->sub(determinant,
-                                               this->field->mul(matrix[row][0], this->calculateDeterminant(subMatrix)));
+                adjugate[j][i] = field.subtract(0, minorOfElement);
         }
 
-        return (determinant);
-    }
+    return (adjugate);
 }
 
-long InverseCodingMatrix::calculateDeterminantAIJ(const MatrixData &matrix, int indexRow, int indexColumn) const {
+/**
+ * @brief Inverts a square matrix with the adjugate method: A^-1 = det(A)^-1 · adj(A).
+ * @param matrix Square matrix.
+ * @param field Field used for the arithmetic.
+ * @return The inverse of @p matrix.
+ * @throws std::invalid_argument If the determinant of @p matrix is zero.
+ */
+[[nodiscard]] MatrixData invert(const MatrixData &matrix, const Field &field) {
 
-    int m = static_cast<int>(matrix.size());
+    const long determinant{computeDeterminant(matrix, field)};
 
-    long determinantAij = 0;
-    int subMatrixRow = 0;
-    int subMatrixColumn = 0;
+    if (determinant == 0)
+        throw std::invalid_argument("The selected matrix is not invertible!");
 
-    //Build the matrix leaving out row indexRow and column indexColumn.
-    MatrixData matrixAij(m - 1, std::vector<long>(m - 1, 0));
+    const long determinantInverse{field.computeInverse(determinant)};
+    MatrixData inverse{computeAdjugate(matrix, field)};
 
-    //Fill the matrix with the values outside row indexRow and column indexColumn.
-    for (int i = 0; i < m; i++) {
+    for (std::vector<long> &row : inverse)
+        for (long &value : row)
+            value = field.multiply(value, determinantInverse);
 
-        if (i != indexRow) {
-            for (int j = 0; j < m; j++) {
-                if (j != indexColumn)
-                    matrixAij[subMatrixRow][subMatrixColumn++] = matrix[i][j];
-            }
-
-            subMatrixRow++;
-            subMatrixColumn = 0;
-
-        }
-    }
-
-    determinantAij = this->calculateDeterminant(matrixAij);
-
-    return (determinantAij);
-
+    return (inverse);
 }
 
-std::unique_ptr<InverseCodingMatrix> InverseCodingMatrix::getInverse(const CodingMatrix &A, const std::vector<int> &labels) {
+} //namespace
 
-    if (static_cast<int>(labels.size()) != A.getColumn()) {
-        std::cerr << "There must be exactly m labels, one for each column of the coding matrix!" << std::endl;
-        return (nullptr);
-    }
+InverseCodingMatrix::InverseCodingMatrix(MatrixData values, std::shared_ptr<const Field> field, std::vector<int> labels)
+    : Matrix(std::move(values)), field(std::move(field)), labels(std::move(labels)) {}
 
-    //Every label must be the index of a row of the coding matrix.
-    for (int i = 0; i < A.getColumn(); i++)
-        if (labels[i] < 0 || labels[i] >= A.getRow()) {
-            std::cerr << "Fragment label out of range!" << std::endl;
-            return (nullptr);
-        }
+std::unique_ptr<InverseCodingMatrix> InverseCodingMatrix::getInverse(const CodingMatrix &A,
+                                                                     const std::vector<int> &labels) {
+
+    if (static_cast<int>(labels.size()) != A.getColumn())
+        throw std::invalid_argument("There must be exactly m labels, one for each column of the coding matrix!");
+
+    //The rows of A chosen by the labels form the square submatrix to invert.
+    const MatrixData subMatrix{A.selectRows(labels)};
 
     //The constructor is private: a static member function can call it.
-    InverseCodingMatrix inverse(A, labels);
+    InverseCodingMatrix inverse{invert(subMatrix, *A.getField()), A.getField(), labels};
 
-    long determinant = inverse.calculateDeterminant(inverse.fragmentsCodingMatrix);
-
-    if (determinant == 0) {
-        std::cerr << "The selected matrix is not invertible!" << std::endl;
-        return (nullptr);
-    }
-
-    long determinantInverse = inverse.field->inv(determinant);
-
-    //Create and initialize the cofactor matrix.
-
-    MatrixData cofactorMatrix(inverse.getColumn(), std::vector<long>(inverse.getColumn(), 0));
-
-    //The cofactor is the minor with sign (-1)^(i+j): when i + j is odd, it is subtracted from zero.
-    for (int i = 0; i < inverse.getColumn(); i++)
-        for (int j = 0; j < inverse.getColumn(); j++)
-            if ((i + j) % 2 == 0)
-                cofactorMatrix[i][j] = inverse.calculateDeterminantAIJ(inverse.fragmentsCodingMatrix, i, j);
-            else
-                cofactorMatrix[i][j] = inverse.field->sub(0, inverse.calculateDeterminantAIJ(inverse.fragmentsCodingMatrix, i, j));
-
-
-    //Compute the transpose of the cofactor matrix.
-
-    MatrixData transposedCofactorMatrix(inverse.getColumn(), std::vector<long>(inverse.getColumn(), 0));
-
-    for (int i = 0; i < inverse.getColumn(); i++)
-        for (int j = 0; j < inverse.getColumn(); j++)
-            transposedCofactorMatrix[j][i] = cofactorMatrix[i][j];
-
-    //Compute the inverse matrix.
-
-    for (int i = 0; i < inverse.getColumn(); i++)
-        for (int j = 0; j < inverse.getColumn(); j++)
-            inverse.inverseCodingMatrixData[i][j] = inverse.field->mul(transposedCofactorMatrix[i][j], determinantInverse);
-
-    //Move the inverse into a new object owned by the caller. The move constructor is public, so std::make_unique can use it.
+    //Move the inverse into a new object owned by the caller. The move constructor is public, so std::make_unique can
+    //use it.
     return (std::make_unique<InverseCodingMatrix>(std::move(inverse)));
-
 }
 
-const std::shared_ptr<Field> &InverseCodingMatrix::getField() const {
-    return this->field;
+const std::shared_ptr<const Field> &InverseCodingMatrix::getField() const {
+    return (this->field);
 }
 
 const std::vector<int> &InverseCodingMatrix::getLabels() const {
     return (this->labels);
 }
 
-const MatrixData &InverseCodingMatrix::getInverseCodingMatrixData() const {
-    return this->inverseCodingMatrixData;
-}
-
+} //namespace ida

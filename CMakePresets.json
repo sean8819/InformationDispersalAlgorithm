@@ -1,0 +1,38 @@
+{
+  "version": 6,
+  "configurePresets": [
+    {
+      "name": "verify",
+      "displayName": "Full verification",
+      "description": "Warnings as errors, clang-tidy and sanitizers: run only when a feature or refactoring is complete.",
+      "binaryDir": "${sourceDir}/build-verify",
+      "cacheVariables": {
+        "CMAKE_BUILD_TYPE": "Debug",
+        "WARNINGS_AS_ERRORS": "ON",
+        "RUN_CLANG_TIDY": "ON",
+        "ENABLE_SANITIZERS": "ON"
+      }
+    }
+  ],
+  "buildPresets": [
+    { "name": "verify", "configurePreset": "verify" }
+  ],
+  "testPresets": [
+    {
+      "name": "verify",
+      "configurePreset": "verify",
+      "output": { "outputOnFailure": true },
+      "filter": { "exclude": { "label": "integration" } }
+    }
+  ],
+  "workflowPresets": [
+    {
+      "name": "verify",
+      "steps": [
+        { "type": "configure", "name": "verify" },
+        { "type": "build", "name": "verify" },
+        { "type": "test", "name": "verify" }
+      ]
+    }
+  ]
+}

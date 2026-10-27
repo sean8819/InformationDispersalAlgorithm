@@ -7,60 +7,55 @@
 
 #include "Matrix/CodingMatrix.h"
 
-CodingMatrix::CodingMatrix(int row, int column, std::shared_ptr<Field> field) : Matrix(row, column) {
+#include <stdexcept>
+#include <utility>
+#include <vector>
 
-    if (field == nullptr) {
-        std::cerr << "The field cannot be null" << std::endl;
-        exit(EXIT_FAILURE);
+#include "Field/Field.h"
+
+namespace ida {
+
+namespace {
+
+/**
+ * @brief Computes the Vandermonde matrix: row i is (1, i+1, (i+1)^2, ..., (i+1)^(column-1)) in the field.
+ *
+ * It checks its parameters first because it runs in the member initializer
+ * list of CodingMatrix, before the body of the constructor.
+ *
+ * @param row Number of rows.
+ * @param column Number of columns.
+ * @param field Field used for the arithmetic.
+ * @return The values of the matrix.
+ * @throws std::invalid_argument If @p field is null, or @p row or @p column is less than 1.
+ */
+[[nodiscard]] MatrixData computeVandermondeValues(int row, int column, const std::shared_ptr<const Field> &field) {
+
+    if (field == nullptr)
+        throw std::invalid_argument("The field cannot be null");
+
+    if (row < 1 || column < 1)
+        throw std::invalid_argument("The coding matrix must have at least one row and one column");
+
+    MatrixData values(row, std::vector<long>(column, 0));
+
+    for (int i = 0; i < row; i++) {
+        values[i][0] = 1;
+
+        for (int j = 1; j < column; j++)
+            values[i][j] = field->computePower(i + 1, j);
     }
-    else if (row < 1 || column < 1) {
-        std::cerr << "The coding matrix must have at least one row and one column" << std::endl;
-        exit(EXIT_FAILURE);
-    }
 
-    this->field = std::move(field);
-    this->initializeCodingMatrix();
+    return (values);
 }
 
-//Generate the matrix of linearly independent vectors. This matrix is the Vandermonde matrix.
+} //namespace
 
-int CodingMatrix::initializeCodingMatrix() {
+CodingMatrix::CodingMatrix(int row, int column, std::shared_ptr<const Field> field)
+    : Matrix(computeVandermondeValues(row, column, field)), field(std::move(field)) {}
 
-    this->codingMatrix = MatrixData(this->getRow(), std::vector<long>(this->getColumn(), 0));
-
-    for (int i = 0; i < this->getRow(); i++) {
-        this->codingMatrix[i][0] = 1;
-
-        for (int j = 1; j < this->getColumn(); j++)
-            this->codingMatrix[i][j] = this->field->pow(i + 1, j);
-    }
-
-    return 0;
+const std::shared_ptr<const Field> &CodingMatrix::getField() const {
+    return (this->field);
 }
 
-void CodingMatrix::printMatrix(const std::string &label) const {
-
-    std::cout << label << std::endl;
-
-    for (int i = 0; i < this->getRow(); i++) {
-        for (int j = 0; j < this->getColumn(); j++)
-            std::cout << this->codingMatrix[i][j] << " ";
-
-        std::cout << std::endl;
-
-    }
-}
-
-
-const MatrixData &CodingMatrix::getCodingMatrix() const {
-    return (this->codingMatrix);
-}
-
-const std::shared_ptr<Field> &CodingMatrix::getField() const {
-    return this->field;
-}
-
-
-
-
-
+} //namespace ida

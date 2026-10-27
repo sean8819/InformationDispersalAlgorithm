@@ -1,18 +1,15 @@
 /**
  * @file Matrix.h
- * @brief Abstract base class for the project's matrices.
+ * @brief Base class for the project's matrices.
  * @author Sean8819
  * @date 26/10/2026
  */
 
 #pragma once
 
-#include<iostream>
-#include<string>
-#include<utility>
-#include<cmath>
-#include<vector>
-#include<memory>
+#include <vector>
+
+namespace ida {
 
 /**
  * @brief Values of a matrix: a vector of rows, each one a vector of values.
@@ -22,32 +19,29 @@
 using MatrixData = std::vector<std::vector<long>>;
 
 /**
- * @brief Generic matrix; the base class only knows its dimensions.
+ * @brief Generic matrix: its values and the operations common to every kind of matrix.
  *
- * Each subclass manages its own data and implements printMatrix().
+ * Each subclass computes its values in its constructor; the values never
+ * change afterwards.
+ *
+ * @invariant Every row has the same number of values.
  */
 class Matrix {
 
 private:
 
-    int row;    ///< Number of rows.
-    int column; ///< Number of columns.
+    MatrixData values; ///< Values, one vector for each row.
 
-public:
-
-    /**
-     * @brief Creates a matrix with the given dimensions.
-     * @param row Number of rows.
-     * @param column Number of columns.
-     */
-    Matrix(int row, int column);
+protected:
 
     /**
-     * @brief Creates a 0 x 0 matrix.
+     * @brief Creates a matrix with the given values; only subclasses create matrices.
+     * @param values Values, one vector for each row, every row with the same length.
      */
-    Matrix();
+    explicit Matrix(MatrixData values);
 
-    //The class declares a virtual destructor, so it declares copy and move explicitly too (rule of five).
+    //Copy and move are protected: a Matrix cannot be copied through a base
+    //reference (slicing), but every subclass can still be copied and moved.
 
     /**
      * @brief Copies a matrix.
@@ -75,39 +69,38 @@ public:
      */
     Matrix &operator=(Matrix &&other) = default;
 
-    /**
-     * @brief Sets the number of rows.
-     * @param row New number of rows.
-     */
-    void setRow(int row);
-
-    /**
-     * @brief Sets the number of columns.
-     * @param column New number of columns.
-     */
-    void setColumn(int column);
+public:
 
     /**
      * @brief Returns the number of rows.
      * @return Number of rows.
      */
-    int getRow() const;
+    [[nodiscard]] int getRow() const;
 
     /**
      * @brief Returns the number of columns.
-     * @return Number of columns.
+     * @return Number of columns; 0 for a matrix without rows.
      */
-    int getColumn() const;
+    [[nodiscard]] int getColumn() const;
 
     /**
-     * @brief Prints the matrix to standard output.
-     * @param label Header printed before the values.
+     * @brief Returns the matrix values.
+     * @return Reference to the internal values, not a copy.
      */
-    virtual void printMatrix(const std::string &label) const = 0;
+    [[nodiscard]] const MatrixData &getValues() const;
+
+    /**
+     * @brief Copies the selected rows, i.e. fragments.
+     * @param labels Indices of the rows to copy, in the order they are wanted.
+     * @return The values of the selected rows, one row for each label.
+     * @throws std::out_of_range If a label is not the index of a row.
+     */
+    [[nodiscard]] MatrixData selectRows(const std::vector<int> &labels) const;
 
     /**
      * @brief Virtual destructor.
      */
     virtual ~Matrix() = default;
-
 };
+
+} //namespace ida

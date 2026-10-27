@@ -7,23 +7,30 @@
 
 #include "Field/Field.h"
 
-long Field::pow(long base, int exponent) {
+#include <stdexcept>
 
-    long result = 1;
+namespace ida {
+
+long Field::computePower(long base, int exponent) const {
+
+    if (exponent < 0)
+        throw std::invalid_argument("The exponent cannot be negative");
+
+    long power{1};
 
     for (int i = 0; i < exponent; i++)
-        result = this->mul(result, base);
+        power = this->multiply(power, base);
 
-    return (result);
+    return (power);
 }
 
-long Field::inv(long a) {
+long Field::computeInverse(long a) const {
 
-    if (a == 0) {
-        std::cerr << "Zero has no inverse!" << std::endl;
-        return (-1);
-    }
+    if (a == 0)
+        throw std::invalid_argument("Zero has no inverse!");
 
     //In a field with q elements a^(q-1) = 1, so the inverse of a is a^(q-2).
-    return (this->pow(a, this->getSize() - 2));
+    return (this->computePower(a, this->getSize() - 2));
 }
+
+} //namespace ida

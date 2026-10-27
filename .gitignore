@@ -1,0 +1,10 @@
+# Build directories (CMake, CLion and the verify preset).
+build/
+build-*/
+cmake-build-*/
+
+# Personal files of JetBrains IDEs: the shared project settings in .idea/ stay versioned.
+.idea/workspace.xml
+.idea/tasks.xml
+.idea/usage.statistics.xml
+.idea/shelf/

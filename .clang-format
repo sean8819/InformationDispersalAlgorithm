@@ -1,0 +1,52 @@
+# clang-format configuration (clang-format 16 or later).
+# It enforces the layout of the code: braces, indentation, spacing and line length.
+Language: Cpp
+Standard: c++17
+BasedOnStyle: LLVM
+ColumnLimit: 120
+IndentWidth: 4
+ContinuationIndentWidth: 4
+AccessModifierOffset: -4
+IndentAccessModifiers: false
+NamespaceIndentation: None
+FixNamespaceComments: false
+BreakBeforeBraces: Custom
+BraceWrapping:
+  AfterCaseLabel: false
+  AfterClass: false
+  AfterControlStatement: Never
+  AfterEnum: false
+  AfterFunction: false
+  AfterNamespace: false
+  AfterStruct: false
+  AfterUnion: false
+  BeforeCatch: true
+  BeforeElse: true
+  BeforeLambdaBody: false
+  BeforeWhile: false
+  IndentBraces: false
+  SplitEmptyFunction: true
+  SplitEmptyRecord: true
+  SplitEmptyNamespace: true
+AllowShortFunctionsOnASingleLine: Empty
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+AllowShortBlocksOnASingleLine: Never
+AllowShortEnumsOnASingleLine: true
+InsertBraces: false
+PointerAlignment: Right
+DerivePointerAlignment: false
+SpaceBeforeParens: ControlStatements
+SpaceAfterCStyleCast: false
+KeepEmptyLinesAtTheStartOfBlocks: true
+MaxEmptyLinesToKeep: 2
+EmptyLineBeforeAccessModifier: Always
+EmptyLineAfterAccessModifier: Always
+AlignTrailingComments: true
+AlignAfterOpenBracket: Align
+BreakConstructorInitializers: BeforeColon
+SortIncludes: Never
+IncludeBlocks: Preserve
+ReflowComments: false
+Cpp11BracedListStyle: true
+AlwaysBreakTemplateDeclarations: Yes

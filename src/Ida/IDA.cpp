@@ -7,161 +7,138 @@
 
 #include "Ida/IDA.h"
 
-IDA::IDA(int n, int m, std::shared_ptr<Field> field, bool verbose) {
+#include <cassert>
+#include <stdexcept>
+#include <string>
+#include <utility>
 
-    if (field == nullptr) {
-        std::cerr << "The field cannot be null" << std::endl;
-        exit(EXIT_FAILURE);
-    }
-    else if (m < 1) {
-        std::cerr << "The parameter m must be at least 1" << std::endl;
-        exit(EXIT_FAILURE);
-    }
-    else if (m >= n) {
-        std::cerr << "The parameter m must be strictly less than n" << std::endl;
-        exit(EXIT_FAILURE);
-    }
-    //Every byte value 0 ... 255 must be an element of the field, otherwise some characters would be lost.
-    else if (field->getSize() < 256) {
-        std::cerr << "The field must have at least 256 elements, one for each byte value" << std::endl;
-        exit(EXIT_FAILURE);
-    }
+#include "Field/Field.h"
+#include "Matrix/CodingMatrix.h"
+#include "Matrix/EncodedMatrix.h"
+#include "Matrix/InverseCodingMatrix.h"
+#include "Matrix/TextMatrix.h"
+
+namespace ida {
+
+IDA::IDA(int n, int m, std::shared_ptr<const Field> field) : n(n), m(m), field(std::move(field)) {
+
+    if (this->field == nullptr)
+        throw std::invalid_argument("The field cannot be null");
+
+    if (m < 1)
+        throw std::invalid_argument("The parameter m must be at least 1");
+
+    if (m >= n)
+        throw std::invalid_argument("The parameter m must be strictly less than n");
+
+    //Every byte value must be an element of the field, otherwise some characters would be lost.
+    if (this->field->getSize() < IDA::minimumFieldSize)
+        throw std::invalid_argument("The field must have at least " + std::to_string(IDA::minimumFieldSize) +
+                                    " elements, one for each byte value");
+
     //The coding matrix uses the n distinct non-zero elements 1 ... n, so n must be less than the field size.
-    else if (n >= field->getSize()) {
-        std::cerr << "The parameter n must be less than the number of elements of the field" << std::endl;
-        exit(EXIT_FAILURE);
-    }
-    else {
-        this->n = n;
-        this->m = m;
-        this->field = std::move(field);
-        this->verbose = verbose;
-    }
-
+    if (n >= this->field->getSize())
+        throw std::invalid_argument("The parameter n must be less than the number of elements of the field");
 }
 
 std::unique_ptr<EncodedMatrix> IDA::encode(const CodingMatrix &A, const TextMatrix &B) const {
 
-    if (A.getField() != this->field) {
-        std::cerr << "The coding matrix must use the same field object as the IDA object!" << std::endl;
-        return (nullptr);
-    }
-    else if (A.getRow() != this->n || A.getColumn() != this->m) {
-        std::cerr << "The coding matrix must have n rows and m columns!" << std::endl;
-        return (nullptr);
-    }
-    else if (A.getColumn() != B.getRow()) {
-        std::cerr << "The number of columns of A must equal the number of rows of B!" << std::endl;
-        return (nullptr);
-    }
-    else {
+    this->checkEncodingArguments(A, B);
 
-        if (this->verbose) {
-            B.printCharacterCodes();
-            std::cout << "\n--- ENCODING ---" << std::endl;
-        }
-        //Encode the data.
+    EncodedMatrix C{this->multiplyMatrices(A, B), B.getPadding()};
 
-        int row = A.getRow();
-        int column = B.getColumn();
-
-        const MatrixData &matrixValueA = A.getCodingMatrix();
-        const MatrixData &matrixValueB = B.getTextMatrix();
-
-        long product = 0;
-
-        EncodedMatrix C(row, column);
-
-        //To encode, compute the row-by-column product of the coding matrix A and the text matrix B in the field.
-        for (int i = 0; i < row; i++) {
-            for (int j = 0; j < column; j++) {
-                for (int k = 0; k < A.getColumn(); k++) {
-
-                    product = this->field->mul(matrixValueA[i][k], matrixValueB[k][j]);
-
-                    C.getDataEncoded()[i][j] = this->field->add(C.getDataEncoded()[i][j], product);
-
-                    if (this->verbose)
-                        std::cout << matrixValueA[i][k] << " * " << matrixValueB[k][j] << " = " << product << std::endl;
-
-                }
-
-                if (this->verbose)
-                    std::cout << "Result: " << C.getDataEncoded()[i][j] << std::endl << std::endl;
-            }
-        }
-
-        C.setPadding(B.getPadding());
-
-        if (this->verbose) {
-            A.printMatrix();
-            B.printMatrix();
-        }
-
-        C.printMatrix();
-
-        //Move the encoded matrix into a new object owned by the caller.
-        return (std::make_unique<EncodedMatrix>(std::move(C)));
-    }
-
+    //Move the encoded matrix into a new object owned by the caller.
+    return (std::make_unique<EncodedMatrix>(std::move(C)));
 }
 
-std::string IDA::decode(const InverseCodingMatrix &A, const EncodedMatrix &C, const std::vector<int> &labels) const {
+void IDA::checkEncodingArguments(const CodingMatrix &A, const TextMatrix &B) const {
 
-    if (A.getField() != this->field) {
-        std::cerr << "The inverse must use the same field object as the IDA object!" << std::endl;
-        return ("");
+    if (A.getField() != this->field)
+        throw std::invalid_argument("The coding matrix must use the same field object as the IDA object!");
+
+    if (A.getRow() != this->n || A.getColumn() != this->m)
+        throw std::invalid_argument("The coding matrix must have n rows and m columns!");
+
+    if (A.getColumn() != B.getRow())
+        throw std::invalid_argument("The number of columns of A must equal the number of rows of B!");
+}
+
+MatrixData IDA::multiplyMatrices(const Matrix &left, const Matrix &right) const {
+
+    //The callers check the dimensions of the matrices they receive.
+    assert(left.getColumn() == right.getRow());
+
+    MatrixData product(left.getRow(), std::vector<long>(right.getColumn(), 0));
+
+    for (int i = 0; i < left.getRow(); i++)
+        for (int j = 0; j < right.getColumn(); j++)
+            product[i][j] = this->addProducts(this->computeProducts(left.getValues()[i], right, j));
+
+    return (product);
+}
+
+std::vector<FieldProduct> IDA::computeProducts(const std::vector<long> &leftRow, const Matrix &right,
+                                               int column) const {
+
+    std::vector<FieldProduct> products{};
+
+    for (int k = 0; k < static_cast<int>(leftRow.size()); k++) {
+        const long rightFactor{right.getValues()[k][column]};
+
+        products.push_back(FieldProduct{leftRow[k], rightFactor, this->field->multiply(leftRow[k], rightFactor)});
     }
-    else if (A.getRow() != this->m || A.getColumn() != this->m) {
-        std::cerr << "The inverse must have m rows and m columns!" << std::endl;
-        return ("");
-    }
-    else if (static_cast<int>(labels.size()) != this->m) {
-        std::cerr << "There must be exactly m labels!" << std::endl;
-        return ("");
-    }
-    //The inverse rebuilds the text only from the fragments it was computed for.
-    else if (A.getLabels() != labels) {
-        std::cerr << "The labels must be the same ones used to compute the inverse!" << std::endl;
-        return ("");
-    }
 
-    if (this->verbose)
-        std::cout << "\n--- Decoding ---" << std::endl;
+    return (products);
+}
 
-    std::unique_ptr<EncodedMatrix> fragments = C.getFragments(labels);
+long IDA::addProducts(const std::vector<FieldProduct> &products) const {
 
-    if (fragments == nullptr)
-        return ("");
+    long sum{0};
 
-    int padding = C.getPadding();
+    for (const FieldProduct &product : products)
+        sum = this->field->add(sum, product.value);
 
-    if (this->verbose) {
-        A.printMatrix();
-        fragments->printMatrix("\nFragment matrix used:");
-    }
+    return (sum);
+}
 
-    //Multiply the inverse of the coding submatrix by the matrix of the selected fragments to rebuild the original string.
-    MatrixData decoded(this->m, std::vector<long>(C.getColumn(), 0));
-    std::string rebuiltText;
+std::vector<EncodingStep> IDA::computeEncodingSteps(const CodingMatrix &A, const TextMatrix &B) const {
 
-    for (int k = 0; k < C.getColumn(); k++)
-        for (int i = 0; i < A.getRow(); i++) {
-            for (int j = 0; j < A.getColumn(); j++)
-                decoded[i][k] = this->field->add(decoded[i][k], this->field->mul(A.getInverseCodingMatrixData()[i][j],
-                                                                                 fragments->getDataEncoded()[j][k]));
+    this->checkEncodingArguments(A, B);
 
-            rebuiltText += static_cast<char>(decoded[i][k]);
+    std::vector<EncodingStep> steps{};
+
+    for (const std::vector<long> &codingRow : A.getValues())
+        for (int j = 0; j < B.getColumn(); j++) {
+            std::vector<FieldProduct> products{this->computeProducts(codingRow, B, j)};
+            const long result{this->addProducts(products)};
+
+            steps.push_back(EncodingStep{std::move(products), result});
         }
 
-    std::cout << "\nDecoded matrix:" << std::endl;
-
-    for (int i = 0; i < this->m; i++) {
-        for (int k = 0; k < C.getColumn(); k++)
-            std::cout << decoded[i][k] << " ";
-
-        std::cout << std::endl;
-    }
-
-    return (rebuiltText.substr(0, rebuiltText.length() - padding));
+    return (steps);
 }
+
+std::string IDA::decode(const InverseCodingMatrix &inverse, const EncodedMatrix &C) const {
+    return (TextMatrix::readText(this->computeDecodedValues(inverse, C), C.getPadding()));
+}
+
+MatrixData IDA::computeDecodedValues(const InverseCodingMatrix &inverse, const EncodedMatrix &C) const {
+
+    this->checkInverse(inverse);
+
+    //The inverse rebuilds the text only from the fragments it was computed for: B = A'^-1 · C'.
+    const std::unique_ptr<EncodedMatrix> fragments{C.getFragments(inverse.getLabels())};
+
+    return (this->multiplyMatrices(inverse, *fragments));
+}
+
+void IDA::checkInverse(const InverseCodingMatrix &inverse) const {
+
+    if (inverse.getField() != this->field)
+        throw std::invalid_argument("The inverse must use the same field object as the IDA object!");
+
+    if (inverse.getRow() != this->m || inverse.getColumn() != this->m)
+        throw std::invalid_argument("The inverse must have m rows and m columns!");
+}
+
+} //namespace ida

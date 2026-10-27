@@ -1,0 +1,4 @@
+# clang-tidy configuration for the Tests folder: the project configuration,
+# without the magic number check, because expected values in tests are clearer as literals.
+InheritParentConfig: true
+Checks: '-readability-magic-numbers'

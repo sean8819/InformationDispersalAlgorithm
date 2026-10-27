@@ -7,35 +7,46 @@
 
 #include "Field/GaloisField256.h"
 
-long GaloisField256::add(long a, long b) {
+namespace ida {
+
+long GaloisField256::add(long a, long b) const {
     return (a ^ b);
 }
 
-long GaloisField256::sub(long a, long b) {
+long GaloisField256::subtract(long a, long b) const {
     return (a ^ b);
 }
 
-long GaloisField256::mul(long a, long b) {
+long GaloisField256::multiply(long a, long b) const {
 
-    long result = 0;
+    //A single XOR reduces an element of degree 8 only if the polynomial has degree exactly 8.
+    static_assert(GaloisField256::polynomial >= GaloisField256::overflowBit &&
+                      GaloisField256::polynomial < 2 * GaloisField256::overflowBit,
+                  "The polynomial of GF(2^8) must have degree 8");
+
+    long product{0};
+    long shiftedA{a};
+    long remainingB{b};
 
     //For each bit of b set to 1, add (XOR) a shifted by the position of that bit.
-    while (b > 0) {
+    while (remainingB > 0) {
 
-        if ((b & 1) == 1)
-            result ^= a;
+        if ((remainingB & 1) == 1)
+            product ^= shiftedA;
 
-        b >>= 1;
-        a <<= 1;
+        remainingB >>= 1;
+        shiftedA <<= 1;
 
-        //If a reaches degree 8, reduce it modulo the irreducible polynomial.
-        if ((a & 0x100) != 0)
-            a ^= this->polynomial;
+        //If the shifted a reaches degree 8, reduce it modulo the irreducible polynomial.
+        if ((shiftedA & GaloisField256::overflowBit) != 0)
+            shiftedA ^= GaloisField256::polynomial;
     }
 
-    return (result);
+    return (product);
 }
 
 int GaloisField256::getSize() const {
-    return (256);
+    return (GaloisField256::elementCount);
 }
+
+} //namespace ida

@@ -5,84 +5,134 @@
  * @date 26/10/2026
  */
 
-#include "Ida/IDA.h"
+#include <algorithm>
+#include <cstddef>
+#include <memory>
+#include <string>
+#include <type_traits>
+#include <vector>
+
+#include "Field/Field.h"
 #include "Field/GaloisField256.h"
 #include "Field/PrimeField.h"
+#include "Ida/IDA.h"
+#include "Matrix/CodingMatrix.h"
+#include "Matrix/EncodedMatrix.h"
+#include "Matrix/InverseCodingMatrix.h"
+#include "Matrix/Matrix.h"
+#include "Matrix/TextMatrix.h"
 #include "TestUtil.h"
 
-int decodes = 0;    ///< Number of decodings performed.
+namespace {
+
+//The matrices are moved into the objects returned by encode(), getFragments() and getInverse().
+static_assert(std::is_nothrow_move_constructible_v<ida::EncodedMatrix>,
+              "EncodedMatrix must be movable without exceptions");
+static_assert(std::is_nothrow_move_constructible_v<ida::InverseCodingMatrix>,
+              "InverseCodingMatrix must be movable without exceptions");
+static_assert(!std::is_copy_constructible_v<ida::Matrix>, "A Matrix cannot be copied through the base class");
 
 /**
- * @brief Decodes the encoded matrix with every choice of m fragments out of n.
- *
- * Fills @p labels recursively with increasing indices. When all m labels are
- * set, decodes and compares the result with the original text.
- *
- * @param ida Object that performs the decoding.
- * @param A Coding matrix.
+ * @brief A field to test, with the name printed on failure.
+ */
+struct FieldUnderTest {
+    std::shared_ptr<const ida::Field> field; ///< Field used for the arithmetic.
+    std::string name;                        ///< Name of the field, printed on failure.
+};
+
+/**
+ * @brief Number of fragments generated and needed.
+ */
+struct FragmentCounts {
+    int n{0}; ///< Number of fragments generated.
+    int m{0}; ///< Number of fragments needed for reconstruction.
+};
+
+/**
+ * @brief Lists every choice of m fragments out of n.
+ * @param counts Number of fragments generated and needed.
+ * @return Every set of m labels, each in increasing order.
+ */
+[[nodiscard]] std::vector<std::vector<int>> computeAllLabelChoices(FragmentCounts counts) {
+
+    //The value selected[i] tells whether fragment i is chosen: every permutation of the selection is one choice.
+    std::vector<bool> selected(static_cast<std::size_t>(counts.n), false);
+    std::fill(selected.begin(), selected.begin() + counts.m, true);
+
+    std::vector<std::vector<int>> choices{};
+
+    //The selection starts as its largest permutation (the true values first), so prev_permutation visits them all.
+    do {
+        std::vector<int> labels{};
+
+        for (int i = 0; i < counts.n; i++)
+            if (selected[i])
+                labels.push_back(i);
+
+        choices.push_back(labels);
+    } while (std::prev_permutation(selected.begin(), selected.end()));
+
+    return (choices);
+}
+
+/**
+ * @brief Checks that every value of an encoded matrix is an element of the field.
  * @param C Encoded matrix.
- * @param data Original text.
- * @param labels Vector of m elements, filled here with the indices of the fragments.
- * @param n Number of fragments.
- * @param count Number of labels already set.
- * @param start First index that can be used for the next label.
+ * @param field Field used for the arithmetic.
  * @param description Description of the test case, printed on failure.
  */
-void decodeAllCombinations(const IDA &ida, const CodingMatrix &A, const EncodedMatrix &C, const std::string &data,
-                           std::vector<int> &labels, int n, int count, int start, const std::string &description) {
+void checkEncodedValues(const ida::EncodedMatrix &C, const ida::Field &field, const std::string &description) {
 
-    if (count == static_cast<int>(labels.size())) {
-        std::unique_ptr<InverseCodingMatrix> inverse = InverseCodingMatrix::getInverse(A, labels);
-
-        check(inverse != nullptr, description + ": submatrix is invertible");
-
-        if (inverse != nullptr) {
-            check(ida.decode(*inverse, C, labels) == data, description + ": text is rebuilt");
-            decodes++;
-        }
-    }
-    else {
-        for (int i = start; i < n; i++) {
-            labels[count] = i;
-            decodeAllCombinations(ida, A, C, data, labels, n, count + 1, i + 1, description);
-        }
-    }
+    for (const std::vector<long> &row : C.getValues())
+        for (const long value : row)
+            check(value >= 0 && value < field.getSize(), description + ": encoded value is a field element");
 }
 
 /**
- * @brief Encodes a text, checks that every encoded value is a field element and decodes it with every choice of fragments.
- * @param field Field used for the arithmetic.
- * @param fieldName Name of the field, printed on failure.
- * @param n Number of fragments generated.
- * @param m Number of fragments needed for reconstruction.
+ * @brief Encodes a text and decodes it with every choice of m fragments out of n.
+ * @param fieldUnderTest Field used for the arithmetic, with its name.
+ * @param counts Number of fragments generated and needed.
  * @param data Text to encode.
+ * @return Number of decodings performed.
  */
-void roundtrip(const std::shared_ptr<Field> &field, const std::string &fieldName, int n, int m, const std::string &data) {
+[[nodiscard]] int checkRoundtrip(const FieldUnderTest &fieldUnderTest, FragmentCounts counts, const std::string &data) {
 
-    std::string description = fieldName + " n=" + std::to_string(n) + " m=" + std::to_string(m) +
-                              " length=" + std::to_string(data.length());
+    const std::string description{fieldUnderTest.name + " n=" + std::to_string(counts.n) +
+                                  " m=" + std::to_string(counts.m) + " length=" + std::to_string(data.length())};
+    const ida::CodingMatrix A{counts.n, counts.m, fieldUnderTest.field};
+    const ida::TextMatrix B{counts.m, data};
+    const ida::IDA dispersal{counts.n, counts.m, fieldUnderTest.field};
+    const std::unique_ptr<ida::EncodedMatrix> C{dispersal.encode(A, B)};
 
-    CodingMatrix A(n, m, field);
-    TextMatrix B(m, data);
+    checkEncodedValues(*C, *fieldUnderTest.field, description);
 
-    IDA ida(n, m, field, false);
+    const std::vector<std::vector<int>> labelChoices{computeAllLabelChoices(counts)};
 
-    std::unique_ptr<EncodedMatrix> C = ida.encode(A, B);
+    for (const std::vector<int> &labels : labelChoices) {
+        const std::unique_ptr<ida::InverseCodingMatrix> inverse{ida::InverseCodingMatrix::getInverse(A, labels)};
 
-    check(C != nullptr, description + ": text is encoded");
+        check(dispersal.decode(*inverse, *C) == data, description + ": text is rebuilt");
+        check(C->getFragments(labels)->getPadding() == B.getPadding(), description + ": fragments keep the padding");
+    }
 
-    if (C == nullptr)
-        return;
-
-    for (int i = 0; i < C->getRow(); i++)
-        for (int j = 0; j < C->getColumn(); j++)
-            check(C->getDataEncoded()[i][j] >= 0 && C->getDataEncoded()[i][j] < field->getSize(),
-                  description + ": encoded value is a field element");
-
-    std::vector<int> labels(m);
-
-    decodeAllCombinations(ida, A, *C, data, labels, n, 0, 0, description);
+    return (static_cast<int>(labelChoices.size()));
 }
+
+/**
+ * @brief Builds a text with every byte value from 1 to 255.
+ * @return The text, 255 characters long.
+ */
+[[nodiscard]] std::string makeAllBytesText() {
+
+    std::string allBytes{};
+
+    for (int byteValue = 1; byteValue < 256; byteValue++)
+        allBytes += static_cast<char>(byteValue);
+
+    return (allBytes);
+}
+
+} //namespace
 
 /**
  * @brief Runs the round-trip tests.
@@ -90,35 +140,21 @@ void roundtrip(const std::shared_ptr<Field> &field, const std::string &fieldName
  */
 int main() {
 
-    //The classes print every step to standard output: silence it while the tests run.
-    std::cout.setstate(std::ios_base::failbit);
-
-    std::shared_ptr<Field> fields[] = {std::make_shared<GaloisField256>(), std::make_shared<PrimeField>(257)};
-    std::string fieldNames[] = {"GF(2^8)", "GF(257)"};
-
-    //Text with every byte value from 1 to 255.
-    std::string allBytes;
-
-    for (int byteValue = 1; byteValue < 256; byteValue++)
-        allBytes += static_cast<char>(byteValue);
+    const std::vector<FieldUnderTest> fields{{std::make_shared<ida::GaloisField256>(), "GF(2^8)"},
+                                             {std::make_shared<ida::PrimeField>(257), "GF(257)"}};
 
     //"abcde" with m = 4 needs 3 padding characters to fill a 4 x 2 matrix.
-    std::string texts[] = {"Il barone Fanfulla da Lodi, condottier di gran rinomanza ...",
-                           "Hello, world!",
-                           "abcdefghij",
-                           "abcde",
-                           allBytes};
+    const std::vector<std::string> texts{"Il barone Fanfulla da Lodi, condottier di gran rinomanza ...",
+                                         "Hello, world!", "abcdefghij", "abcde", makeAllBytesText()};
 
-    //Pairs (n, m).
-    int parameters[][2] = {{3, 1}, {4, 2}, {6, 3}, {10, 4}, {12, 5}};
+    const std::vector<FragmentCounts> parameters{{3, 1}, {4, 2}, {6, 3}, {10, 4}, {12, 5}};
 
-    for (int fieldIndex = 0; fieldIndex < 2; fieldIndex++)
-        for (int textIndex = 0; textIndex < 5; textIndex++)
-            for (int parameterIndex = 0; parameterIndex < 5; parameterIndex++)
-                roundtrip(fields[fieldIndex], fieldNames[fieldIndex],
-                          parameters[parameterIndex][0], parameters[parameterIndex][1], texts[textIndex]);
+    int decodings{0};
 
-    std::cout.clear();
+    for (const FieldUnderTest &fieldUnderTest : fields)
+        for (const std::string &text : texts)
+            for (const FragmentCounts counts : parameters)
+                decodings += checkRoundtrip(fieldUnderTest, counts, text);
 
-    return report("All round-trip tests passed (" + std::to_string(decodes) + " decodings)");
+    return (report("All round-trip tests passed (" + std::to_string(decodings) + " decodings)"));
 }

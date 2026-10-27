@@ -9,6 +9,8 @@
 
 #include "Field/Field.h"
 
+namespace ida {
+
 /**
  * @brief Galois field GF(2^8).
  *
@@ -16,12 +18,16 @@
  * coefficients in GF(2): bit k is the coefficient of x^k. Addition and
  * subtraction are both XOR. Multiplication is polynomial multiplication
  * reduced modulo the AES polynomial x^8 + x^4 + x^3 + x + 1.
+ *
+ * @invariant The field has 256 elements: the integers 0 ... 255.
  */
-class GaloisField256 : public Field {
+class GaloisField256 final : public Field {
 
 private:
 
-    const int polynomial = 0x11B;   ///< Irreducible polynomial x^8 + x^4 + x^3 + x + 1.
+    static constexpr int elementCount{256};   ///< Number of elements: one for each byte value.
+    static constexpr long overflowBit{0x100}; ///< Bit of x^8: an element that reaches it is no longer a byte.
+    static constexpr long polynomial{0x11B};  ///< Irreducible polynomial x^8 + x^4 + x^3 + x + 1.
 
 public:
 
@@ -31,7 +37,7 @@ public:
      * @param b Second element.
      * @return The sum a XOR b.
      */
-    long add(long a, long b) override;
+    [[nodiscard]] long add(long a, long b) const override;
 
     /**
      * @brief Subtracts two elements; in GF(2^8) this is the same as adding them.
@@ -39,7 +45,7 @@ public:
      * @param b Element to subtract.
      * @return The difference a XOR b.
      */
-    long sub(long a, long b) override;
+    [[nodiscard]] long subtract(long a, long b) const override;
 
     /**
      * @brief Multiplies two elements with the shift-and-XOR method.
@@ -47,12 +53,13 @@ public:
      * @param b Second element.
      * @return The product of the two polynomials modulo #polynomial.
      */
-    long mul(long a, long b) override;
+    [[nodiscard]] long multiply(long a, long b) const override;
 
     /**
      * @brief Returns the number of elements of the field.
      * @return Always 256.
      */
-    int getSize() const override;
-
+    [[nodiscard]] int getSize() const override;
 };
+
+} //namespace ida
