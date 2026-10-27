@@ -164,7 +164,8 @@ int main() {
     constexpr OutputDetail outputDetail{OutputDetail::ResultsOnly};
     constexpr FieldKind fieldKind{FieldKind::Galois};
 
-    const std::string data{"Il barone Fanfulla da Lodi, condottier di gran rinomanza ..."};
+    const std::string data{"Il barone Fanfulla da Lodi, condottier di gran rinomanza fu condotto una sera in stanza da "
+                           "una donna di facili amor!"};
 
     //Fragments, i.e. rows of the encoded matrix, used to rebuild the text: any m of the n are enough.
     const std::vector<int> labels{0, 3};
