@@ -1,0 +1,6 @@
+#Only the sources are needed to build the image: build directories, IDE files and git stay out.
+build/
+build-*/
+cmake-build-*/
+.idea/
+.git/

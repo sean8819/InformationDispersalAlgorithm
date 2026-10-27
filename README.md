@@ -52,6 +52,7 @@ every non-zero a, so a⁻¹ = a^(q−2).
 ```
 ├── CMakeLists.txt
 ├── CMakePresets.json                 The verify preset (full verification)
+├── Dockerfile                        Builds and tests the program, then runs it in a container
 ├── cmake
 │   └── QualityChecks.cmake           Compiler warnings and on-request checks
 ├── README.md
@@ -151,6 +152,19 @@ command, to run when a change is complete:
 ```bash
 cmake --workflow --preset verify --fresh
 ```
+
+## Run with Docker
+
+Docker needs nothing else installed: the image compiles the program and runs
+every test while it is built, so it is produced only if all the tests pass.
+
+```bash
+docker build -t ida .
+docker run --rm ida
+```
+
+The settings are the ones in `src/main.cpp` (see [Configuration](#configuration)):
+after changing them, build the image again.
 
 ## Tests
 
