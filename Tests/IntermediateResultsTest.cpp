@@ -74,6 +74,7 @@ void testEncodingStepsMatchEncodedMatrix() {
         encodedValues.insert(encodedValues.end(), row.begin(), row.end());
 
     std::vector<long> stepResults{};
+    stepResults.reserve(steps.size());
 
     for (const ida::EncodingStep &step : steps)
         stepResults.push_back(step.result);

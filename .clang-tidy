@@ -1,6 +1,7 @@
 # clang-tidy configuration (clang-tidy 16 or later).
 # It checks naming, initialization, special member functions, [[nodiscard]], const, function size, magic numbers,
 # performance and likely bugs.
+# performance-enum-size is off: a smaller base type for an enum class is an optimization without a need (KISS).
 Checks: >
   -*,
   bugprone-*,
@@ -23,6 +24,7 @@ Checks: >
   modernize-use-override,
   modernize-use-using,
   performance-*,
+  -performance-enum-size,
   readability-function-size,
   readability-identifier-naming,
   readability-magic-numbers

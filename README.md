@@ -183,9 +183,10 @@ ctest --test-dir build
 
 ## Configuration
 
-The parameters are set in `src/main.cpp`:
+The parameters are the default values of the `Settings` structure in
+`src/main.cpp`:
 
-| Variable       | Default                     | Meaning                                                  |
+| Member         | Default                     | Meaning                                                  |
 |----------------|-----------------------------|----------------------------------------------------------|
 | `n`            | 4                           | Number of fragments generated                            |
 | `m`            | 2                           | Number of fragments needed for reconstruction            |

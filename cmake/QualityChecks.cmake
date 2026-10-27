@@ -11,6 +11,10 @@ option(ENABLE_THREAD_SANITIZER "Build with ThreadSanitizer (cannot be combined w
 add_compile_options(-Wall -Wextra -Wpedantic -Wconversion -Wold-style-cast -Wnon-virtual-dtor
                     -Woverloaded-virtual -Wnull-dereference)
 
+#Indices are signed int on purpose, so -Wsign-conversion is not used. GCC does not include it in -Wconversion
+#for C++, but Clang (and clang-tidy, which parses the code with Clang) does: it is turned off explicitly.
+add_compile_options(-Wno-sign-conversion)
+
 #These warnings exist only in GCC.
 if (CMAKE_CXX_COMPILER_ID STREQUAL "GNU")
     add_compile_options(-Wshadow=local -Wduplicated-cond -Wlogical-op -Wuseless-cast)

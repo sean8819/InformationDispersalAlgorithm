@@ -43,6 +43,20 @@ enum class FieldKind {
 };
 
 /**
+ * @brief Parameters of the example: change the default values to try other ones.
+ */
+struct Settings {
+    int n{4};                                             ///< Number of fragments generated.
+    int m{2};                                             ///< Number of fragments needed for reconstruction.
+    int p{257};                                           ///< Prime modulus, used only by FieldKind::Prime.
+    OutputDetail outputDetail{OutputDetail::ResultsOnly}; ///< How much the program prints.
+    FieldKind fieldKind{FieldKind::Galois};               ///< Field used for the arithmetic: GF(2^8) or GF(p).
+    std::string data{"Il barone Fanfulla da Lodi, condottier di gran rinomanza fu condotto una sera in stanza da "
+                     "una donna di facili amor!"}; ///< Text to encode.
+    std::vector<int> labels{0, 3};                 ///< Fragments used to rebuild the text: any m of the n are enough.
+};
+
+/**
  * @brief Creates the field used for the arithmetic.
  * @param fieldKind Kind of field.
  * @param p Prime modulus, used only by FieldKind::Prime.
@@ -144,54 +158,47 @@ void printDecoding(const ida::IDA &dispersal, const ida::InverseCodingMatrix &in
     std::cout << "\nRebuild data:\n" << dispersal.decode(inverse, C) << '\n';
 }
 
+/**
+ * @brief Encodes the text of the settings, prints the results and rebuilds the text.
+ * @param settings Parameters of the example.
+ * @throws std::invalid_argument If a parameter is not valid.
+ */
+void runExample(const Settings &settings) {
+
+    std::cout << "\nData: " << settings.data << '\n';
+
+    //The field is shared by the coding matrix, its inverse and the IDA object.
+    const std::shared_ptr<const ida::Field> field{createField(settings.fieldKind, settings.p)};
+    const ida::CodingMatrix A{settings.n, settings.m, field};
+    const ida::TextMatrix B{settings.m, settings.data};
+    const ida::IDA dispersal{settings.n, settings.m, field};
+    const std::unique_ptr<ida::EncodedMatrix> C{dispersal.encode(A, B)};
+
+    if (settings.outputDetail == OutputDetail::EveryStep)
+        printEncodingDetails(dispersal, A, B);
+
+    printMatrix("\nEncoded matrix:", C->getValues());
+
+    const ida::InverseCodingMatrix inverse{A, settings.labels};
+
+    if (settings.outputDetail == OutputDetail::EveryStep)
+        printDecodingDetails(inverse, *C);
+
+    printDecoding(dispersal, inverse, *C);
+}
+
 } //namespace
 
 /**
- * @brief Encodes a sample string and rebuilds it.
- *
- * Uses n = 4, m = 2 and the field chosen by fieldKind, and rebuilds the text
- * from fragments 0 and 3. outputDetail chooses whether every intermediate
- * step is printed too.
- *
+ * @brief Encodes a sample string and rebuilds it, with the parameters of Settings.
  * @return EXIT_SUCCESS, or EXIT_FAILURE if a parameter is not valid.
  */
 int main() {
 
-    constexpr int n{4};
-    constexpr int m{2};
-    constexpr int p{257};
-
-    //Settings: how much the program prints, and the field used for the arithmetic (GF(2^8) or GF(p)).
-    constexpr OutputDetail outputDetail{OutputDetail::ResultsOnly};
-    constexpr FieldKind fieldKind{FieldKind::Galois};
-
-    const std::string data{"Il barone Fanfulla da Lodi, condottier di gran rinomanza fu condotto una sera in stanza da "
-                           "una donna di facili amor!"};
-
-    //Fragments, i.e. rows of the encoded matrix, used to rebuild the text: any m of the n are enough.
-    const std::vector<int> labels{0, 3};
+    const Settings settings{};
 
     try {
-        std::cout << "\nData: " << data << '\n';
-
-        //The field is shared by the coding matrix, its inverse and the IDA object.
-        const std::shared_ptr<const ida::Field> field{createField(fieldKind, p)};
-        const ida::CodingMatrix A{n, m, field};
-        const ida::TextMatrix B{m, data};
-        const ida::IDA dispersal{n, m, field};
-        const std::unique_ptr<ida::EncodedMatrix> C{dispersal.encode(A, B)};
-
-        if (outputDetail == OutputDetail::EveryStep)
-            printEncodingDetails(dispersal, A, B);
-
-        printMatrix("\nEncoded matrix:", C->getValues());
-
-        const ida::InverseCodingMatrix inverse{A, labels};
-
-        if (outputDetail == OutputDetail::EveryStep)
-            printDecodingDetails(inverse, *C);
-
-        printDecoding(dispersal, inverse, *C);
+        runExample(settings);
     }
     catch (const std::exception &error) {
         std::cerr << error.what() << '\n';
