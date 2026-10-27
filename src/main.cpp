@@ -125,7 +125,7 @@ void printEncodingDetails(const ida::IDA &dispersal, const ida::CodingMatrix &A,
  */
 void printDecodingDetails(const ida::InverseCodingMatrix &inverse, const ida::EncodedMatrix &C) {
 
-    const std::unique_ptr<ida::EncodedMatrix> fragments{C.getFragments(inverse.getLabels())};
+    const std::unique_ptr<ida::EncodedMatrix> fragments{C.selectFragments(inverse.getLabels())};
 
     std::cout << "\n--- Decoding ---" << '\n';
     printMatrix("\nInverse matrix:", inverse.getValues());
@@ -186,12 +186,12 @@ int main() {
 
         printMatrix("\nEncoded matrix:", C->getValues());
 
-        const std::unique_ptr<ida::InverseCodingMatrix> inverse{ida::InverseCodingMatrix::getInverse(A, labels)};
+        const ida::InverseCodingMatrix inverse{A, labels};
 
         if (outputDetail == OutputDetail::EveryStep)
-            printDecodingDetails(*inverse, *C);
+            printDecodingDetails(inverse, *C);
 
-        printDecoding(dispersal, *inverse, *C);
+        printDecoding(dispersal, inverse, *C);
     }
     catch (const std::exception &error) {
         std::cerr << error.what() << '\n';

@@ -111,13 +111,12 @@ No object is freed by hand: every allocation is owned by something that frees
 it automatically.
 
 - **Local objects** whenever an object does not leave its function, such as
-  `A`, `B` and `ida` in `main.cpp`. They need no allocation, they are
-  destroyed at the end of the block, and they are used with the dot notation.
-  `encode()`, `getFragments()` and `getInverse()` also build their result as
-  a local object and move it into a `std::unique_ptr` only when they return.
-- **`std::unique_ptr`** for objects with a single owner. `encode()`,
-  `getFragments()` and `getInverse()` return one, so the caller owns the new
-  matrix.
+  `A`, `B`, `dispersal` and `inverse` in `main.cpp`. They need no allocation,
+  they are destroyed at the end of the block, and they are used with the dot
+  notation. `encode()` and `selectFragments()` also build their result as a
+  local object and move it into a `std::unique_ptr` only when they return.
+- **`std::unique_ptr`** for objects with a single owner. `encode()` and
+  `selectFragments()` return one, so the caller owns the new matrix.
 - **`std::shared_ptr<const Field>`** for the field, which is used by the
   coding matrix, its inverse and the `IDA` object at the same time, and never
   changes.
@@ -125,9 +124,10 @@ it automatically.
 - **References** for parameters that use an object without owning it, such
   as the matrices passed to `encode()` and `decode()`: `const T &` when the
   function only reads the object. A reference cannot be null, so these
-  functions do not need null checks; `encode()`, `getFragments()` and
-  `getInverse()` never return a null pointer, because they throw an exception
-  when they cannot compute their result.
+  functions do not need null checks; `encode()` and `selectFragments()` never
+  return a null pointer, and the `InverseCodingMatrix` constructor never leaves
+  a half-built object: they throw an exception when they cannot compute their
+  result.
 - **By value** for small types (`int`, `long`), and for parameters the
   function stores, followed by `std::move` (the text in `TextMatrix`, the
   field in the constructors, the values of the matrices).

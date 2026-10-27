@@ -44,7 +44,7 @@ public:
      * @return New matrix with one row for each label and the same padding, owned by the caller.
      * @throws std::out_of_range If a label is not the index of a row.
      */
-    [[nodiscard]] std::unique_ptr<EncodedMatrix> getFragments(const std::vector<int> &labels) const;
+    [[nodiscard]] std::unique_ptr<EncodedMatrix> selectFragments(const std::vector<int> &labels) const;
 
     /**
      * @brief Returns the number of padding characters.

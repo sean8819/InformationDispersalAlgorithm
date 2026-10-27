@@ -25,7 +25,7 @@
 
 namespace {
 
-//The matrices are moved into the objects returned by encode(), getFragments() and getInverse().
+//The matrices are moved into the objects returned by encode() and selectFragments().
 static_assert(std::is_nothrow_move_constructible_v<ida::EncodedMatrix>,
               "EncodedMatrix must be movable without exceptions");
 static_assert(std::is_nothrow_move_constructible_v<ida::InverseCodingMatrix>,
@@ -109,10 +109,10 @@ void checkEncodedValues(const ida::EncodedMatrix &C, const ida::Field &field, co
     const std::vector<std::vector<int>> labelChoices{computeAllLabelChoices(counts)};
 
     for (const std::vector<int> &labels : labelChoices) {
-        const std::unique_ptr<ida::InverseCodingMatrix> inverse{ida::InverseCodingMatrix::getInverse(A, labels)};
+        const ida::InverseCodingMatrix inverse{A, labels};
 
-        check(dispersal.decode(*inverse, *C) == data, description + ": text is rebuilt");
-        check(C->getFragments(labels)->getPadding() == B.getPadding(), description + ": fragments keep the padding");
+        check(dispersal.decode(inverse, *C) == data, description + ": text is rebuilt");
+        check(C->selectFragments(labels)->getPadding() == B.getPadding(), description + ": fragments keep the padding");
     }
 
     return (static_cast<int>(labelChoices.size()));

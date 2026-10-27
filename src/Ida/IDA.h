@@ -129,7 +129,7 @@ public:
      * Multiplies @p inverse by the fragments of @p C selected by its labels in
      * the field, reads the text and removes the padding.
      *
-     * @param inverse Inverse of the coding submatrix (m x m), from InverseCodingMatrix::getInverse().
+     * @param inverse Inverse of the coding submatrix (m x m), built for the chosen fragments.
      * @param C Encoded matrix.
      * @return The original text.
      * @throws std::invalid_argument If @p inverse uses another field object or is not m x m.
@@ -139,7 +139,7 @@ public:
 
     /**
      * @brief Computes the decoded matrix: the text matrix rebuilt from the fragments, padding included.
-     * @param inverse Inverse of the coding submatrix (m x m), from InverseCodingMatrix::getInverse().
+     * @param inverse Inverse of the coding submatrix (m x m), built for the chosen fragments.
      * @param C Encoded matrix.
      * @return The product of @p inverse by the fragments of @p C selected by its labels (m x columns).
      * @throws std::invalid_argument If @p inverse uses another field object or is not m x m.

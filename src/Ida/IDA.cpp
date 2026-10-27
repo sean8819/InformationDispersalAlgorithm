@@ -127,7 +127,7 @@ MatrixData IDA::computeDecodedValues(const InverseCodingMatrix &inverse, const E
     this->checkInverse(inverse);
 
     //The inverse rebuilds the text only from the fragments it was computed for: B = A'^-1 · C'.
-    const std::unique_ptr<EncodedMatrix> fragments{C.getFragments(inverse.getLabels())};
+    const std::unique_ptr<EncodedMatrix> fragments{C.selectFragments(inverse.getLabels())};
 
     return (this->multiplyMatrices(inverse, *fragments));
 }

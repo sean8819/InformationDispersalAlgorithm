@@ -8,7 +8,6 @@
 #include "Matrix/InverseCodingMatrix.h"
 
 #include <stdexcept>
-#include <utility>
 
 #include "Field/Field.h"
 #include "Matrix/CodingMatrix.h"
@@ -131,27 +130,31 @@ namespace {
     return (inverse);
 }
 
-} //namespace
-
-InverseCodingMatrix::InverseCodingMatrix(MatrixData values, std::shared_ptr<const Field> field, std::vector<int> labels)
-    : Matrix(std::move(values)), field(std::move(field)), labels(std::move(labels)) {}
-
-std::unique_ptr<InverseCodingMatrix> InverseCodingMatrix::getInverse(const CodingMatrix &A,
-                                                                     const std::vector<int> &labels) {
+/**
+ * @brief Computes the values of the inverse of the coding submatrix chosen by the labels.
+ *
+ * It checks the labels first because it runs in the member initializer list
+ * of InverseCodingMatrix, before the body of the constructor.
+ *
+ * @param A Full coding matrix.
+ * @param labels Indices of the m rows (fragments) chosen for reconstruction.
+ * @return The values of the inverse.
+ * @throws std::invalid_argument If @p labels does not hold m indices, or the submatrix is not invertible.
+ * @throws std::out_of_range If a label is not the index of a row of @p A.
+ */
+[[nodiscard]] MatrixData computeInverseValues(const CodingMatrix &A, const std::vector<int> &labels) {
 
     if (static_cast<int>(labels.size()) != A.getColumn())
         throw std::invalid_argument("There must be exactly m labels, one for each column of the coding matrix!");
 
     //The rows of A chosen by the labels form the square submatrix to invert.
-    const MatrixData subMatrix{A.selectRows(labels)};
-
-    //The constructor is private: a static member function can call it.
-    InverseCodingMatrix inverse{invert(subMatrix, *A.getField()), A.getField(), labels};
-
-    //Move the inverse into a new object owned by the caller. The move constructor is public, so std::make_unique can
-    //use it.
-    return (std::make_unique<InverseCodingMatrix>(std::move(inverse)));
+    return (invert(A.selectRows(labels), *A.getField()));
 }
+
+} //namespace
+
+InverseCodingMatrix::InverseCodingMatrix(const CodingMatrix &A, const std::vector<int> &labels)
+    : Matrix(computeInverseValues(A, labels)), field(A.getField()), labels(labels) {}
 
 const std::shared_ptr<const Field> &InverseCodingMatrix::getField() const {
     return (this->field);

@@ -31,15 +31,15 @@ enum class Outcome {
 };
 
 /**
- * @brief Computes the inverse of a coding submatrix and tells how it ended.
+ * @brief Creates the inverse of a coding submatrix and tells how it ended.
  * @param A Coding matrix.
  * @param labels Indices of the fragments.
  * @return The exception thrown, or Outcome::Accepted.
  */
-[[nodiscard]] Outcome tryGetInverse(const ida::CodingMatrix &A, const std::vector<int> &labels) {
+[[nodiscard]] Outcome tryCreateInverse(const ida::CodingMatrix &A, const std::vector<int> &labels) {
 
     try {
-        static_cast<void>(ida::InverseCodingMatrix::getInverse(A, labels));
+        const ida::InverseCodingMatrix inverse{A, labels};
     }
     catch (const std::invalid_argument &) {
         return (Outcome::InvalidArgument);
@@ -57,10 +57,10 @@ enum class Outcome {
  * @param labels Indices of the fragments.
  * @return The exception thrown, or Outcome::Accepted.
  */
-[[nodiscard]] Outcome tryGetFragments(const ida::EncodedMatrix &C, const std::vector<int> &labels) {
+[[nodiscard]] Outcome trySelectFragments(const ida::EncodedMatrix &C, const std::vector<int> &labels) {
 
     try {
-        static_cast<void>(C.getFragments(labels));
+        static_cast<void>(C.selectFragments(labels));
     }
     catch (const std::out_of_range &) {
         return (Outcome::OutOfRange);
@@ -175,12 +175,12 @@ void testInverseRejectsInvalidLabels() {
 
     const ida::CodingMatrix A{4, 2, std::make_shared<ida::GaloisField256>()};
 
-    check(tryGetInverse(A, {0, 3}) == Outcome::Accepted, "getInverse accepts labels 0 and 3");
-    check(tryGetInverse(A, {0, 4}) == Outcome::OutOfRange, "getInverse rejects a label equal to n");
-    check(tryGetInverse(A, {-1, 0}) == Outcome::OutOfRange, "getInverse rejects a negative label");
-    check(tryGetInverse(A, {0}) == Outcome::InvalidArgument, "getInverse rejects fewer than m labels");
-    check(tryGetInverse(A, {0, 1, 3}) == Outcome::InvalidArgument, "getInverse rejects more than m labels");
-    check(tryGetInverse(A, {1, 1}) == Outcome::InvalidArgument, "getInverse rejects a repeated label");
+    check(tryCreateInverse(A, {0, 3}) == Outcome::Accepted, "the inverse accepts labels 0 and 3");
+    check(tryCreateInverse(A, {0, 4}) == Outcome::OutOfRange, "the inverse rejects a label equal to n");
+    check(tryCreateInverse(A, {-1, 0}) == Outcome::OutOfRange, "the inverse rejects a negative label");
+    check(tryCreateInverse(A, {0}) == Outcome::InvalidArgument, "the inverse rejects fewer than m labels");
+    check(tryCreateInverse(A, {0, 1, 3}) == Outcome::InvalidArgument, "the inverse rejects more than m labels");
+    check(tryCreateInverse(A, {1, 1}) == Outcome::InvalidArgument, "the inverse rejects a repeated label");
 }
 
 /**
@@ -193,9 +193,9 @@ void testFragmentsRejectInvalidLabels() {
     const std::unique_ptr<ida::EncodedMatrix> C{
         dispersal.encode(ida::CodingMatrix{4, 2, field}, ida::TextMatrix{2, "abcdef"})};
 
-    check(tryGetFragments(*C, {0, 3}) == Outcome::Accepted, "getFragments accepts labels 0 and 3");
-    check(tryGetFragments(*C, {0, 4}) == Outcome::OutOfRange, "getFragments rejects a label equal to n");
-    check(tryGetFragments(*C, {-1, 0}) == Outcome::OutOfRange, "getFragments rejects a negative label");
+    check(trySelectFragments(*C, {0, 3}) == Outcome::Accepted, "selectFragments accepts labels 0 and 3");
+    check(trySelectFragments(*C, {0, 4}) == Outcome::OutOfRange, "selectFragments rejects a label equal to n");
+    check(trySelectFragments(*C, {-1, 0}) == Outcome::OutOfRange, "selectFragments rejects a negative label");
 }
 
 /**
@@ -241,24 +241,24 @@ void testDecodeRejectsInvalidInverse() {
     const std::unique_ptr<ida::EncodedMatrix> C{dispersal.encode(A, ida::TextMatrix{2, "abcdef"})};
     const std::vector<int> labels{0, 3};
 
-    check(tryDecode(dispersal, *ida::InverseCodingMatrix::getInverse(A, labels), *C) == Outcome::Accepted,
+    check(tryDecode(dispersal, ida::InverseCodingMatrix{A, labels}, *C) == Outcome::Accepted,
           "decode accepts the inverse for labels 0 and 3");
 
     const ida::CodingMatrix otherA{4, 2, std::make_shared<ida::PrimeField>(257)};
 
-    check(tryDecode(dispersal, *ida::InverseCodingMatrix::getInverse(otherA, labels), *C) == Outcome::InvalidArgument,
+    check(tryDecode(dispersal, ida::InverseCodingMatrix{otherA, labels}, *C) == Outcome::InvalidArgument,
           "decode rejects an inverse with a different field");
 
     //The inverse must be m x m: a larger one would read outside the fragments matrix.
     const ida::CodingMatrix wideA{4, 3, field};
 
-    check(tryDecode(dispersal, *ida::InverseCodingMatrix::getInverse(wideA, {0, 1, 3}), *C) == Outcome::InvalidArgument,
+    check(tryDecode(dispersal, ida::InverseCodingMatrix{wideA, {0, 1, 3}}, *C) == Outcome::InvalidArgument,
           "decode rejects an inverse larger than m x m");
 
     //An inverse computed for a fragment that the encoded matrix does not have.
     const ida::CodingMatrix tallA{5, 2, field};
 
-    check(tryDecode(dispersal, *ida::InverseCodingMatrix::getInverse(tallA, {0, 4}), *C) == Outcome::OutOfRange,
+    check(tryDecode(dispersal, ida::InverseCodingMatrix{tallA, {0, 4}}, *C) == Outcome::OutOfRange,
           "decode rejects an inverse for a fragment that does not exist");
 }
 

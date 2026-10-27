@@ -33,27 +33,17 @@ private:
     std::shared_ptr<const Field> field; ///< Field used for the arithmetic, taken from the coding matrix.
     std::vector<int> labels;            ///< Indices of the fragments the inverse was computed for.
 
-    /**
-     * @brief Creates the inverse from its values; use getInverse() to compute them.
-     * @param values Values of the inverse.
-     * @param field Field used for the arithmetic.
-     * @param labels Indices of the fragments the inverse was computed for.
-     */
-    InverseCodingMatrix(MatrixData values, std::shared_ptr<const Field> field, std::vector<int> labels);
-
 public:
 
     /**
      * @brief Computes the inverse of the coding submatrix.
      * @param A Full coding matrix.
      * @param labels Indices of the m rows (fragments) chosen for reconstruction.
-     * @return New inverse matrix, owned by the caller.
      * @throws std::invalid_argument If @p labels does not hold m indices, or the submatrix has a zero
      *         determinant (a label is repeated).
      * @throws std::out_of_range If a label is not the index of a row of @p A.
      */
-    [[nodiscard]] static std::unique_ptr<InverseCodingMatrix> getInverse(const CodingMatrix &A,
-                                                                         const std::vector<int> &labels);
+    InverseCodingMatrix(const CodingMatrix &A, const std::vector<int> &labels);
 
     /**
      * @brief Returns the field used for the arithmetic.

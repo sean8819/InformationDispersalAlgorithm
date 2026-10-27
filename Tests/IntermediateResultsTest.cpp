@@ -89,20 +89,20 @@ void testDecodedValues() {
     const auto field{std::make_shared<ida::GaloisField256>()};
     const ida::CodingMatrix A{4, 2, field};
     const ida::IDA dispersal{4, 2, field};
-    const std::unique_ptr<ida::InverseCodingMatrix> inverse{ida::InverseCodingMatrix::getInverse(A, {0, 3})};
+    const ida::InverseCodingMatrix inverse{A, {0, 3}};
 
     const std::unique_ptr<ida::EncodedMatrix> C{dispersal.encode(A, ida::TextMatrix{2, "hello!"})};
 
-    check(dispersal.computeDecodedValues(*inverse, *C) == ida::MatrixData{{104, 108, 111}, {101, 108, 33}},
+    check(dispersal.computeDecodedValues(inverse, *C) == ida::MatrixData{{104, 108, 111}, {101, 108, 33}},
           "the decoded matrix holds the codes of \"hello!\" by column");
-    check(dispersal.decode(*inverse, *C) == "hello!", "\"hello!\" is rebuilt");
+    check(dispersal.decode(inverse, *C) == "hello!", "\"hello!\" is rebuilt");
 
     //"hello" fills a 2 x 3 matrix with one null padding character, removed by decode().
     const std::unique_ptr<ida::EncodedMatrix> paddedC{dispersal.encode(A, ida::TextMatrix{2, "hello"})};
 
-    check(dispersal.computeDecodedValues(*inverse, *paddedC) == ida::MatrixData{{104, 108, 111}, {101, 108, 0}},
+    check(dispersal.computeDecodedValues(inverse, *paddedC) == ida::MatrixData{{104, 108, 111}, {101, 108, 0}},
           "the decoded matrix keeps the padding");
-    check(dispersal.decode(*inverse, *paddedC) == "hello", "\"hello\" is rebuilt without the padding");
+    check(dispersal.decode(inverse, *paddedC) == "hello", "\"hello\" is rebuilt without the padding");
 }
 
 /**
