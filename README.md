@@ -293,6 +293,13 @@ every good software engineering practice. In particular:
   simplest way, by repeated multiplication, instead of with logarithm tables
   or the extended Euclidean algorithm.
 
+The integrity of the fragments is outside the scope of this project: the
+fragments used for decoding are assumed to be the ones produced by the
+encoding. A fragment altered in storage or in transit is not detected, and
+the decoding gives a wrong text without any error; only in GF(257) a decoded
+value outside 0 ... 255 is sometimes reported as an error. Rabin's paper
+suggests adding a fingerprint to the fragments to recognize the altered ones.
+
 ## Reference
 
 M. O. Rabin, "Efficient dispersal of information for security, load balancing,
