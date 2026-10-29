@@ -4,6 +4,7 @@ Parameters (set <parameter>=<value>):
   n=4                 number of fragments generated
   m=2                 number of fragments needed to rebuild the sentence
   field=galois        galois: GF(2^8); prime: integers modulo 257
+  matrix=vandermonde  vandermonde: inverse in O(m^3); cauchy: inverse in O(m^2)
   fragments=0,3       the m fragments used to rebuild the sentence, from 0 to n-1
   detail=results      results: the main matrices; all: every intermediate step
 

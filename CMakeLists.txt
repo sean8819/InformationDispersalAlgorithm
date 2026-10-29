@@ -23,6 +23,8 @@ add_library(IDALibrary STATIC
         src/Matrix/CodingMatrix.h
         src/Matrix/VandermondeMatrix.cpp
         src/Matrix/VandermondeMatrix.h
+        src/Matrix/CauchyMatrix.cpp
+        src/Matrix/CauchyMatrix.h
         src/Matrix/EncodedMatrix.cpp
         src/Matrix/EncodedMatrix.h
         src/Matrix/InverseCodingMatrix.cpp
@@ -69,6 +71,10 @@ add_test(NAME InvalidParameterTest COMMAND InvalidParameterTest)
 add_executable(Latin1ConverterTest Tests/Latin1ConverterTest.cpp)
 target_link_libraries(Latin1ConverterTest IDALibrary)
 add_test(NAME Latin1ConverterTest COMMAND Latin1ConverterTest)
+
+add_executable(CauchyMatrixTest Tests/CauchyMatrixTest.cpp)
+target_link_libraries(CauchyMatrixTest IDALibrary)
+add_test(NAME CauchyMatrixTest COMMAND CauchyMatrixTest)
 
 add_executable(ConsoleTest Tests/ConsoleTest.cpp)
 target_link_libraries(ConsoleTest IDALibrary)

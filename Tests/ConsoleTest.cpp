@@ -71,6 +71,7 @@ void testHelpShowsTheParameters() {
     check(contains(help, "field=galois"), "the help shows field=galois");
     check(contains(help, "fragments=0,3"), "the help shows fragments=0,3");
     check(contains(help, "detail=results"), "the help shows detail=results");
+    check(contains(help, "matrix=vandermonde"), "the help shows matrix=vandermonde");
     check(execute(console, "help") == help, "the command help prints the help");
 }
 
@@ -104,7 +105,8 @@ void testEveryStepShowsOneCodePerCharacter() {
     const std::string output{execute(console, "\xC3\xA8")};
 
     check(contains(output, "Character codes\n232   0\n"), "\"è\" has the single code 232");
-    check(contains(output, "\nInverse matrix:\n"), "the detailed output shows the inverse");
+    check(contains(output, "\nInverse matrix (Gauss-Jordan, O(m^3)):\n"),
+          "the detailed output shows the inverse of the Vandermonde matrix and its method");
     check(contains(output, "\nRebuild data:\n\xC3\xA8\n"), "\"è\" is rebuilt");
 }
 
@@ -132,6 +134,28 @@ void testWideMatricesAreSplitIntoBlocks() {
             everyRowFits = false;
 
     check(everyRowFits, "no row of numbers is longer than 80 characters");
+}
+
+/**
+ * @brief Checks that the Cauchy matrix rebuilds the sentence, with its inverse given by Rabin's formula.
+ */
+void testCauchyMatrixRebuildsTheSentence() {
+
+    ida::Console console{};
+
+    check(execute(console, "set matrix=cauchy").empty(), "set matrix=cauchy prints nothing");
+    check(contains(console.formatHelp(), "matrix=cauchy"), "the help shows matrix=cauchy");
+    check(contains(execute(console, "Il barone Fanfulla da Lodi!"), "\nRebuild data:\nIl barone Fanfulla da Lodi!\n"),
+          "the Cauchy matrix rebuilds the sentence");
+
+    static_cast<void>(execute(console, "set detail=all"));
+    static_cast<void>(execute(console, "set field=prime"));
+
+    const std::string output{execute(console, "perch\xC3\xA8")};
+
+    check(contains(output, "\nInverse matrix (Cauchy formula, O(m^2)):\n"),
+          "the detailed output shows the inverse of the Cauchy matrix and its method");
+    check(contains(output, "\nRebuild data:\nperch\xC3\xA8\n"), "the Cauchy matrix rebuilds the sentence in GF(257)");
 }
 
 /**
@@ -185,6 +209,8 @@ void testWrongSetCommandsAreRejected() {
     check(findError(console, "set n=4x") == "\"4x\" is not an integer", "a number followed by letters is rejected");
     check(findError(console, "set field=rational") == "The field must be galois or prime",
           "an unknown field is rejected");
+    check(findError(console, "set matrix=hilbert") == "The matrix must be vandermonde or cauchy",
+          "an unknown matrix is rejected");
     check(findError(console, "set detail=some") == "The detail must be results or all",
           "an unknown detail is rejected");
     check(findError(console, "set fragments=0,,3") == "\"\" is not an integer", "an empty fragment index is rejected");
@@ -208,6 +234,13 @@ void testWrongSentencesAreRejected() {
 
     static_cast<void>(execute(console, "set m=4"));
     check(findError(console, "hello").has_value(), "m equal to n is rejected when a sentence is run");
+
+    static_cast<void>(execute(console, "set n=200"));
+    static_cast<void>(execute(console, "set m=57"));
+    static_cast<void>(execute(console, "set matrix=cauchy"));
+    check(findError(console, "hello") ==
+              "The Cauchy matrix needs n + m distinct elements of the field: n + m cannot exceed 256",
+          "a Cauchy matrix with n + m above 256 is rejected in GF(2^8)");
 }
 
 } //namespace
@@ -222,6 +255,7 @@ int main() {
     testSentenceIsRebuilt();
     testEveryStepShowsOneCodePerCharacter();
     testWideMatricesAreSplitIntoBlocks();
+    testCauchyMatrixRebuildsTheSentence();
     testSetChangesTheParameters();
     testOnlyTheWordSetStartsACommand();
     testWrongSetCommandsAreRejected();

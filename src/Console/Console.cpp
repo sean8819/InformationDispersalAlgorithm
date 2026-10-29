@@ -24,6 +24,7 @@
 #include "Ida/EncodingStep.h"
 #include "Ida/FieldProduct.h"
 #include "Ida/IDA.h"
+#include "Matrix/CauchyMatrix.h"
 #include "Matrix/CodingMatrix.h"
 #include "Matrix/VandermondeMatrix.h"
 #include "Matrix/EncodedMatrix.h"
@@ -44,11 +45,14 @@ const std::string mParameter{"m"};                 ///< Name of the number of fr
 const std::string fieldParameter{"field"};         ///< Name of the field.
 const std::string fragmentsParameter{"fragments"}; ///< Name of the fragments used for reconstruction.
 const std::string detailParameter{"detail"};       ///< Name of the output detail.
+const std::string matrixParameter{"matrix"};       ///< Name of the coding matrix.
 
-const std::string galoisName{"galois"};       ///< Value of the field parameter for FieldKind::Galois.
-const std::string primeName{"prime"};         ///< Value of the field parameter for FieldKind::Prime.
-const std::string resultsOnlyName{"results"}; ///< Value of the detail parameter for OutputDetail::ResultsOnly.
-const std::string everyStepName{"all"};       ///< Value of the detail parameter for OutputDetail::EveryStep.
+const std::string galoisName{"galois"};           ///< Value of the field parameter for FieldKind::Galois.
+const std::string primeName{"prime"};             ///< Value of the field parameter for FieldKind::Prime.
+const std::string resultsOnlyName{"results"};     ///< Value of the detail parameter for OutputDetail::ResultsOnly.
+const std::string everyStepName{"all"};           ///< Value of the detail parameter for OutputDetail::EveryStep.
+const std::string vandermondeName{"vandermonde"}; ///< Value of the matrix parameter for MatrixKind::Vandermonde.
+const std::string cauchyName{"cauchy"};           ///< Value of the matrix parameter for MatrixKind::Cauchy.
 
 constexpr int helpColumnWidth{20}; ///< Width of the column of the help that holds the commands and the parameters.
 constexpr int lineWidth{
@@ -172,6 +176,23 @@ constexpr int lineWidth{
 }
 
 /**
+ * @brief Reads the name of a coding matrix.
+ * @param value vandermonde or cauchy.
+ * @return The kind of coding matrix.
+ * @throws std::invalid_argument If @p value is not the name of a coding matrix.
+ */
+[[nodiscard]] MatrixKind parseMatrixKind(const std::string &value) {
+
+    if (value == vandermondeName)
+        return (MatrixKind::Vandermonde);
+
+    if (value == cauchyName)
+        return (MatrixKind::Cauchy);
+
+    throw std::invalid_argument("The matrix must be " + vandermondeName + " or " + cauchyName);
+}
+
+/**
  * @brief Gives the name of a field, as the set command reads it.
  * @param fieldKind Kind of field.
  * @return galois or prime.
@@ -195,6 +216,32 @@ constexpr int lineWidth{
         return (resultsOnlyName);
 
     return (everyStepName);
+}
+
+/**
+ * @brief Gives the name of a coding matrix, as the set command reads it.
+ * @param matrixKind Kind of coding matrix.
+ * @return vandermonde or cauchy.
+ */
+[[nodiscard]] std::string formatMatrixKind(MatrixKind matrixKind) {
+
+    if (matrixKind == MatrixKind::Vandermonde)
+        return (vandermondeName);
+
+    return (cauchyName);
+}
+
+/**
+ * @brief Names the method that inverts a coding matrix, with its cost.
+ * @param matrixKind Kind of coding matrix.
+ * @return The method and its number of operations.
+ */
+[[nodiscard]] std::string formatInverseMethod(MatrixKind matrixKind) {
+
+    if (matrixKind == MatrixKind::Vandermonde)
+        return ("Gauss-Jordan, O(m^3)");
+
+    return ("Cauchy formula, O(m^2)");
 }
 
 /**
@@ -244,6 +291,23 @@ constexpr int lineWidth{
         return (std::make_shared<GaloisField256>());
 
     return (std::make_shared<PrimeField>(p));
+}
+
+/**
+ * @brief Creates the coding matrix chosen in the settings.
+ * @param settings Parameters of the console: n, m and the kind of coding matrix.
+ * @param field Field used for the arithmetic.
+ * @return The new coding matrix.
+ * @throws std::invalid_argument If n or m is less than 1, or n + m exceeds the number of elements of the field for
+ *         a Cauchy matrix.
+ */
+[[nodiscard]] std::unique_ptr<CodingMatrix> createCodingMatrix(const Settings &settings,
+                                                               const std::shared_ptr<const Field> &field) {
+
+    if (settings.matrixKind == MatrixKind::Vandermonde)
+        return (std::make_unique<VandermondeMatrix>(settings.n, settings.m, field));
+
+    return (std::make_unique<CauchyMatrix>(settings.n, settings.m, field));
 }
 
 /**
@@ -370,16 +434,19 @@ constexpr int lineWidth{
 }
 
 /**
- * @brief Writes the details of the decoding: the inverse and the fragments it is multiplied by.
+ * @brief Writes the details of the decoding: the inverse, with the method that computed it, and the fragments.
  * @param inverse Inverse of the coding submatrix.
  * @param C Encoded matrix.
+ * @param matrixKind Kind of coding matrix, which decides how the inverse was computed.
  * @return The details of the decoding.
  */
-[[nodiscard]] std::string formatDecodingDetails(const InverseCodingMatrix &inverse, const EncodedMatrix &C) {
+[[nodiscard]] std::string formatDecodingDetails(const InverseCodingMatrix &inverse, const EncodedMatrix &C,
+                                                MatrixKind matrixKind) {
 
     const std::unique_ptr<EncodedMatrix> fragments{C.selectFragments(inverse.getLabels())};
 
-    return ("\n--- Decoding ---\n" + formatMatrix("\nInverse matrix:", inverse.getValues()) +
+    return ("\n--- Decoding ---\n" +
+            formatMatrix("\nInverse matrix (" + formatInverseMethod(matrixKind) + "):", inverse.getValues()) +
             formatMatrix("\nFragment matrix used:", fragments->getValues()));
 }
 
@@ -410,6 +477,8 @@ std::string Console::formatHelp() const {
          << formatHelpLine(fieldParameter + "=" + formatFieldKind(this->settings.fieldKind),
                            galoisName + ": GF(2^8); " + primeName + ": integers modulo " +
                                std::to_string(this->settings.p))
+         << formatHelpLine(matrixParameter + "=" + formatMatrixKind(this->settings.matrixKind),
+                           vandermondeName + ": inverse in O(m^3); " + cauchyName + ": inverse in O(m^2)")
          << formatHelpLine(fragmentsParameter + "=" + formatLabels(this->settings.labels),
                            "the m fragments used to rebuild the sentence, from 0 to n-1")
          << formatHelpLine(detailParameter + "=" + formatOutputDetail(this->settings.outputDetail),
@@ -465,6 +534,8 @@ void Console::assignParameter(const std::string &name, const std::string &value)
         this->settings.labels = parseLabels(value);
     else if (name == detailParameter)
         this->settings.outputDetail = parseOutputDetail(value);
+    else if (name == matrixParameter)
+        this->settings.matrixKind = parseMatrixKind(value);
     else
         throw std::invalid_argument("Unknown parameter \"" + name + "\": type " + helpCommand +
                                     " to see the parameters");
@@ -503,22 +574,22 @@ std::string Console::encodeAndDecode(const std::string &sentence) const {
 
     //The field is shared by the coding matrix, its inverse and the IDA object.
     const std::shared_ptr<const Field> field{createField(this->settings.fieldKind, this->settings.p)};
-    const VandermondeMatrix A{this->settings.n, this->settings.m, field};
+    const std::unique_ptr<CodingMatrix> A{createCodingMatrix(this->settings, field)};
     const TextMatrix B{this->settings.m, codes};
     const IDA dispersal{this->settings.n, this->settings.m, field};
-    const std::unique_ptr<EncodedMatrix> C{dispersal.encode(A, B)};
-    const InverseCodingMatrix inverse{A, this->settings.labels};
+    const std::unique_ptr<EncodedMatrix> C{dispersal.encode(*A, B)};
+    const InverseCodingMatrix inverse{*A, this->settings.labels};
     const bool showEveryStep{this->settings.outputDetail == OutputDetail::EveryStep};
 
     std::string text{"\nData: " + sentence + "\n"};
 
     if (showEveryStep)
-        text += formatEncodingDetails(dispersal, A, B);
+        text += formatEncodingDetails(dispersal, *A, B);
 
     text += formatMatrix("\nEncoded matrix:", C->getValues());
 
     if (showEveryStep)
-        text += formatDecodingDetails(inverse, *C);
+        text += formatDecodingDetails(inverse, *C, this->settings.matrixKind);
 
     return (text + formatDecoding(dispersal, inverse, *C));
 }

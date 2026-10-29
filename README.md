@@ -24,6 +24,7 @@ interactive console that shows every step of the encoding and the decoding.
 - [Commands](#commands)
 - [Features](#features)
   - [Encoding and decoding](#encoding-and-decoding)
+  - [Coding matrices](#coding-matrices)
   - [Finite fields](#finite-fields)
   - [Output](#output)
   - [Characters](#characters)
@@ -50,8 +51,9 @@ can still be recovered.
 
 The interactive console `ida` encodes the sentences you type into n fragments,
 rebuilds them from the m fragments you choose and, with `set detail=all`,
-prints every intermediate matrix. The arithmetic is done in one of two finite
-fields, chosen with `set field`:
+prints every intermediate matrix. The coding matrix is a Vandermonde or a
+Cauchy matrix, chosen with `set matrix`, and the arithmetic is done in one of
+two finite fields, chosen with `set field`:
 
 - **GF(2^8)**, the Galois field with 256 elements. Every encoded value is a
   byte, so fragments can be written to a file as they are.
@@ -69,6 +71,7 @@ fields, chosen with `set field`:
 | `set m=<value>` | Number of fragments needed to rebuild the sentence |
 | `set field=<galois\|prime>` | Field used for the arithmetic: GF(2^8) or GF(257) |
 | `set fragments=<i,j,...>` | The m fragments used to rebuild the sentence |
+| `set matrix=<vandermonde\|cauchy>` | Coding matrix: Vandermonde (inverse in O(m³)) or Cauchy (inverse in O(m²)) |
 | `set detail=<results\|all>` | Only the results, or every intermediate step too |
 | `help` | Shows the help again, with the current value of every parameter |
 | `exit` | Closes the console, as Ctrl-D does |
@@ -89,21 +92,53 @@ Each sentence goes through these steps:
 2. **Text matrix** — the codes are laid out column by column in a matrix B
    with m rows and ⌈L / m⌉ columns, where L is the length of the sentence;
    null characters are appended as padding when L is not a multiple of m
-3. **Coding matrix** — A is an n × m Vandermonde matrix: row i is
-   (1, i+1, (i+1)², …, (i+1)^(m−1)), with the powers computed in the field, so
-   any m of its rows are linearly independent
+3. **Coding matrix** — A is an n × m Vandermonde or Cauchy matrix (see
+   [Coding matrices](#coding-matrices)): any m of its rows are linearly
+   independent
 4. **Encoding** — C = A · B: each row of C is a fragment
 5. **Inverse** — the rows of A that match the chosen fragments form a square
-   matrix A′, inverted with **Gauss-Jordan elimination**: row operations in the
-   field turn the augmented matrix [A′ | I] into [I | A′⁻¹], in O(m³)
-   operations
+   matrix A′, inverted with the method of the coding matrix: Gauss-Jordan
+   elimination in O(m³) operations, or Rabin's formula in O(m²)
 6. **Decoding** — B = A′⁻¹ · C′, where C′ holds the chosen fragments; removing
    the padding gives back the sentence
 
 Constraints:
 - 1 ≤ m < n < number of elements of the field: n is at most **255** in GF(2^8)
   and **256** in GF(257)
+- With the Cauchy matrix, also n + m ≤ number of elements of the field:
+  **256** in GF(2^8) and **257** in GF(257)
 - Exactly **m** distinct fragments, each an index from 0 to n − 1
+
+### Coding matrices
+
+Rabin's paper (section 2, "The Independence Condition") gives two ways to
+build n vectors of which any m are linearly independent:
+
+| Matrix | Row i | Inverse of m rows | Limits |
+| :--- | :--- | :--- | :--- |
+| **Vandermonde** (default) | (1, α_i, α_i², …, α_i^(m−1)), with α_i = i + 1 | **Gauss-Jordan elimination**: row operations in the field turn [A′ \| I] into [I \| A′⁻¹], in O(m³) operations | n < number of elements of the field |
+| **Cauchy** | (1/(x_i + y_1), …, 1/(x_i + y_m)), with x_i = i and y_j = −(n + j), so x_i + y_j is never zero | **Rabin's formula** in O(m²) operations | n + m ≤ number of elements of the field |
+
+The formula for the Cauchy matrix A′, made of the rows x_1, …, x_m, uses for
+every k
+
+- c_k = ∏_{i<k} (x_i − x_k) · ∏_{k<j} (x_k − x_j) and d_k, the same product
+  over the points y
+- e_k = ∏_j (x_k + y_j) and f_k = ∏_i (x_i + y_k)
+
+and gives the inverse b_ij = (−1)^(i+j) · (e_j / c_j) · (f_i / d_i) · a_ji,
+where a_ji = 1/(x_j + y_i) is a value of A′ itself: 2m inverses in the field
+and O(m²) multiplications.
+
+> **Note:** the paper prints |A(j, i)| = |A| / (c_j · d_i · e_j · f_i) · (x_j + y_j)
+> and (y_k − x_j) inside d_k. Both are misprints: already with m = 1 the printed
+> formula does not give the inverse. The formula above follows from the Cauchy
+> determinant (4) of the paper, and `CauchyMatrixTest` checks that A′ · A′⁻¹ = I.
+
+Measured in GF(2^8) with `-O2`: for m = 127 the inverse takes 15.2 ms with
+Gauss-Jordan and 1.1 ms with the Cauchy formula. Below m ≈ 24 Gauss-Jordan is
+faster, because each of the 2m inverses of the formula is computed by repeated
+multiplication.
 
 ### Finite fields
 
@@ -162,7 +197,8 @@ Error: The character "€" at position 8 has the code 8364, outside the range 0-
 - **`detail=results`** — the sentence, the encoded matrix, the decoded matrix
   and the rebuilt sentence
 - **`detail=all`** — also the character codes, every product of the encoding,
-  the coding, text, inverse and fragment matrices
+  the coding, text, inverse and fragment matrices; the header of the inverse
+  names its method, such as `Inverse matrix (Cauchy formula, O(m^2)):`
 - **Aligned matrices** — the values are right-aligned in columns; a matrix
   wider than 80 characters is split into blocks of columns, each with a header
   such as `(columns 1-20 of 58)` and separated by a blank line
@@ -193,6 +229,8 @@ the console goes on with the next line. With n = 4 and m = 2:
 | `m=0` | `The coding matrix must have at least one row and one column` |
 | `n=256` in GF(2^8), `n=257` in GF(257) | `The parameter n must be less than the number of elements of the field` |
 | `m=abc` | `"abc" is not an integer` |
+| `matrix=cauchy` with n = 200 and m = 57 in GF(2^8) | `The Cauchy matrix needs n + m distinct elements of the field: n + m cannot exceed 256` |
+| `matrix=hilbert` | `The matrix must be vandermonde or cauchy` |
 | `colour=red` | `Unknown parameter "colour": type help to see the parameters` |
 
 ---
@@ -217,9 +255,11 @@ InformationDispersalAlgorithm/
 │   ├── Matrix/
 │   │   ├── Matrix.h / .cpp         # Base class: values, size, selection of rows
 │   │   ├── TextMatrix.h / .cpp     # Text to encode (B)
-│   │   ├── CodingMatrix.h / .cpp   # Vandermonde coding matrix (A)
+│   │   ├── CodingMatrix.h / .cpp   # Base class of the coding matrices (A): checks the rows to invert
+│   │   ├── VandermondeMatrix.h / .cpp  # Vandermonde coding matrix, inverted with Gauss-Jordan
+│   │   ├── CauchyMatrix.h / .cpp   # Cauchy coding matrix, inverted with Rabin's formula
 │   │   ├── EncodedMatrix.h / .cpp  # Encoded fragments (C)
-│   │   └── InverseCodingMatrix.h / .cpp  # Inverse of the coding submatrix (A′⁻¹), Gauss-Jordan
+│   │   └── InverseCodingMatrix.h / .cpp  # Inverse of the coding submatrix (A′⁻¹)
 │   ├── Ida/
 │   │   ├── IDA.h / .cpp            # Encoding and decoding
 │   │   ├── EncodingStep.h          # How one value of C is computed
@@ -235,6 +275,7 @@ InformationDispersalAlgorithm/
     ├── InvalidInputTest.cpp        # Invalid inputs are rejected with an exception
     ├── InvalidParameterTest.cpp    # Invalid parameters are rejected with an exception
     ├── IntermediateResultsTest.cpp # Intermediate results exposed by IDA
+    ├── CauchyMatrixTest.cpp        # Cauchy values and the inverse given by Rabin's formula
     ├── Latin1ConverterTest.cpp     # Conversion of the characters typed in the console
     ├── ConsoleTest.cpp             # Commands and sentences of the console
     ├── CheckProgramOutput.cmake    # Runs the program on an input file and compares its output
@@ -249,6 +290,10 @@ InformationDispersalAlgorithm/
 - `IDA`, `CodingMatrix` and `InverseCodingMatrix` receive a `Field` and do
   every operation through it: adding a new field only takes a new subclass of
   `Field`
+- `InverseCodingMatrix` asks the coding matrix for the inverse of the chosen
+  rows: `CodingMatrix::invertRows()` checks the labels, then each subclass
+  computes the inverse with its own method, so adding a coding matrix only
+  takes a new subclass of `CodingMatrix`
 
 ### Output and errors
 
@@ -271,8 +316,8 @@ it automatically.
 
 | Kind | Used for |
 | :--- | :--- |
-| **Local objects** | Objects that do not leave their function, such as `A`, `B`, `dispersal` and `inverse` in `Console::encodeAndDecode()`: no allocation, destroyed at the end of the block, used with the dot notation. `encode()` and `selectFragments()` also build their result as a local object and move it into a `std::unique_ptr` only when they return |
-| **`std::unique_ptr`** | Objects with a single owner: `encode()` and `selectFragments()` return one, so the caller owns the new matrix |
+| **Local objects** | Objects that do not leave their function, such as `B`, `dispersal` and `inverse` in `Console::encodeAndDecode()`: no allocation, destroyed at the end of the block, used with the dot notation. `encode()` and `selectFragments()` also build their result as a local object and move it into a `std::unique_ptr` only when they return |
+| **`std::unique_ptr`** | Objects with a single owner: `encode()` and `selectFragments()` return one, so the caller owns the new matrix; the console holds the coding matrix it chose, Vandermonde or Cauchy, through a `std::unique_ptr<CodingMatrix>` |
 | **`std::shared_ptr<const Field>`** | The field, used by the coding matrix, its inverse and the `IDA` object at the same time, and never changed |
 | **`std::vector`** | The values of the matrices (`MatrixData`) |
 | **References** | Parameters used without owning them, such as the matrices passed to `encode()` and `decode()` (`const T &` when only read). A reference cannot be null, so no null checks are needed; `encode()` and `selectFragments()` never return a null pointer, and the `InverseCodingMatrix` constructor never leaves a half-built object: they throw an exception when they cannot compute their result |
@@ -362,6 +407,7 @@ input and closes at once. After changing the sources, build the image again.
 | `m` | `2` | 1 ≤ m < n |
 | `field` | `galois` | `galois` for GF(2^8), `prime` for GF(257) |
 | `fragments` | `0,3` | m distinct indices from 0 to n − 1, separated by commas |
+| `matrix` | `vandermonde` | `vandermonde`, or `cauchy` when n + m ≤ number of elements of the field |
 | `detail` | `results` | `results` or `all` |
 
 - Spaces around `=` and after the commas are allowed
@@ -374,18 +420,19 @@ input and closes at once. After changing the sources, build the image again.
 
 ## Testing
 
-The project has **8 CTest tests**; RoundtripTest alone performs 11220
+The project has **9 CTest tests**; RoundtripTest alone performs 22440
 decodings.
 
 | Test | Focus |
 | :--- | :--- |
 | `FieldTest` | Arithmetic of both fields: GF(2^8) against the examples of the AES standard (FIPS-197), a · a⁻¹ = 1 for every non-zero element |
-| `RoundtripTest` | Five texts, one with every byte value from 1 to 255, with both fields and (n, m) = (3, 1), (4, 2), (6, 3), (10, 4), (12, 5), (14, 12), decoded with every possible choice of m fragments |
+| `RoundtripTest` | Five texts, one with every byte value from 1 to 255, with both fields, both coding matrices and (n, m) = (3, 1), (4, 2), (6, 3), (10, 4), (12, 5), (14, 12), decoded with every possible choice of m fragments |
+| `CauchyMatrixTest` | Every value is 1/(x_i + y_j); the rows chosen, in any order and up to 129 × 127, times their inverse give the identity; the limit n + m and invalid labels are rejected |
 | `InvalidInputTest` | Fragment indices outside the matrix, a number of indices different from m, repeated indices, matrices with another field or the wrong size, a negative padding |
 | `InvalidParameterTest` | Invalid constructor parameters (m = 0, a field with fewer than 256 elements, a modulus that is not prime) and their messages |
 | `IntermediateResultsTest` | Products and sums of the encoding, decoded matrix and padding exposed by `IDA` |
 | `Latin1ConverterTest` | Every code from 0 to 255 converted to UTF-8 and back; "€", emojis and byte sequences that are not UTF-8 rejected |
-| `ConsoleTest` | Commands, sentences rebuilt with the default and the changed parameters, rejected sentences, aligned matrices and blocks of columns |
+| `ConsoleTest` | Commands, sentences rebuilt with the default and the changed parameters, both coding matrices, rejected sentences, aligned matrices and blocks of columns |
 | `ProgramOutputTest` | Types `Tests/ProgramInput.txt` into the console and checks that it prints exactly `Tests/ExpectedOutput.txt`, nothing on standard error, with exit code 0 |
 
 **Run the tests:**

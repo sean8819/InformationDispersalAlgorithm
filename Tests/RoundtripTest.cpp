@@ -17,6 +17,8 @@
 #include "Field/PrimeField.h"
 #include "Ida/IDA.h"
 #include "Matrix/VandermondeMatrix.h"
+#include "Matrix/CauchyMatrix.h"
+#include "Matrix/CodingMatrix.h"
 #include "Matrix/EncodedMatrix.h"
 #include "Matrix/InverseCodingMatrix.h"
 #include "Matrix/Matrix.h"
@@ -89,22 +91,22 @@ void checkEncodedValues(const ida::EncodedMatrix &C, const ida::Field &field, co
 }
 
 /**
- * @brief Encodes a text and decodes it with every choice of m fragments out of n.
- * @param fieldUnderTest Field used for the arithmetic, with its name.
- * @param counts Number of fragments generated and needed.
+ * @brief Encodes a text with a coding matrix and decodes it with every choice of m fragments out of n.
+ * @param A Coding matrix (n x m).
  * @param data Text to encode.
+ * @param name Name of the field and of the coding matrix, printed on failure.
  * @return Number of decodings performed.
  */
-[[nodiscard]] int checkRoundtrip(const FieldUnderTest &fieldUnderTest, FragmentCounts counts, const std::string &data) {
+[[nodiscard]] int checkRoundtrip(const ida::CodingMatrix &A, const std::string &data, const std::string &name) {
 
-    const std::string description{fieldUnderTest.name + " n=" + std::to_string(counts.n) +
-                                  " m=" + std::to_string(counts.m) + " length=" + std::to_string(data.length())};
-    const ida::VandermondeMatrix A{counts.n, counts.m, fieldUnderTest.field};
+    const FragmentCounts counts{A.getRow(), A.getColumn()};
+    const std::string description{name + " n=" + std::to_string(counts.n) + " m=" + std::to_string(counts.m) +
+                                  " length=" + std::to_string(data.length())};
     const ida::TextMatrix B{counts.m, data};
-    const ida::IDA dispersal{counts.n, counts.m, fieldUnderTest.field};
+    const ida::IDA dispersal{counts.n, counts.m, A.getField()};
     const std::unique_ptr<ida::EncodedMatrix> C{dispersal.encode(A, B)};
 
-    checkEncodedValues(*C, *fieldUnderTest.field, description);
+    checkEncodedValues(*C, *A.getField(), description);
 
     const std::vector<std::vector<int>> labelChoices{computeAllLabelChoices(counts)};
 
@@ -153,9 +155,15 @@ int main() {
     int decodings{0};
 
     for (const FieldUnderTest &fieldUnderTest : fields)
-        for (const std::string &text : texts)
-            for (const FragmentCounts counts : parameters)
-                decodings += checkRoundtrip(fieldUnderTest, counts, text);
+        for (const FragmentCounts counts : parameters) {
+            const ida::VandermondeMatrix vandermonde{counts.n, counts.m, fieldUnderTest.field};
+            const ida::CauchyMatrix cauchy{counts.n, counts.m, fieldUnderTest.field};
+
+            for (const std::string &text : texts) {
+                decodings += checkRoundtrip(vandermonde, text, fieldUnderTest.name + " Vandermonde");
+                decodings += checkRoundtrip(cauchy, text, fieldUnderTest.name + " Cauchy");
+            }
+        }
 
     return (report("All round-trip tests passed (" + std::to_string(decodings) + " decodings)"));
 }

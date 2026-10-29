@@ -20,6 +20,14 @@ enum class OutputDetail {
 };
 
 /**
+ * @brief Coding matrix, which also decides how the inverse is computed.
+ */
+enum class MatrixKind {
+    Vandermonde, ///< Powers of distinct points, inverted with Gauss-Jordan elimination in O(m^3) operations.
+    Cauchy       ///< 1 / (x_i + y_j), inverted with Rabin's formula in O(m^2) operations.
+};
+
+/**
  * @brief Finite field used for the arithmetic.
  */
 enum class FieldKind {
@@ -44,6 +52,7 @@ struct Settings {
     int p{primeModulus};                                  ///< Prime modulus, used only by FieldKind::Prime.
     OutputDetail outputDetail{OutputDetail::ResultsOnly}; ///< How much the console prints.
     FieldKind fieldKind{FieldKind::Galois};               ///< Field used for the arithmetic: GF(2^8) or GF(p).
+    MatrixKind matrixKind{MatrixKind::Vandermonde};       ///< Coding matrix: Vandermonde or Cauchy.
     std::vector<int> labels{0, defaultN - 1}; ///< Fragments used to rebuild the text: the first and the last.
 };
 
