@@ -40,6 +40,13 @@ protected:
      */
     explicit Matrix(MatrixData values);
 
+    /**
+     * @brief Checks that a label is the index of a row.
+     * @param label Index of a row, i.e. of a fragment.
+     * @throws std::out_of_range If @p label is not the index of a row.
+     */
+    void checkRowLabel(int label) const;
+
     //Copy and move are protected: a Matrix cannot be copied through a base
     //reference (slicing), but every subclass can still be copied and moved.
 

@@ -7,6 +7,7 @@
 
 #include "Matrix/CodingMatrix.h"
 
+#include <algorithm>
 #include <stdexcept>
 #include <utility>
 #include <vector>
@@ -18,44 +19,50 @@ namespace ida {
 namespace {
 
 /**
- * @brief Computes the Vandermonde matrix: row i is (1, i+1, (i+1)^2, ..., (i+1)^(column-1)) in the field.
- *
- * It checks its parameters first because it runs in the member initializer
- * list of CodingMatrix, before the body of the constructor.
- *
- * @param row Number of rows.
- * @param column Number of columns.
- * @param field Field used for the arithmetic.
- * @return The values of the matrix.
- * @throws std::invalid_argument If @p field is null, or @p row or @p column is less than 1.
+ * @brief Tells whether a label appears more than once.
+ * @param labels Indices of rows.
+ * @return True if two labels are equal.
  */
-[[nodiscard]] MatrixData computeVandermondeValues(int row, int column, const std::shared_ptr<const Field> &field) {
+[[nodiscard]] bool hasRepeatedLabel(const std::vector<int> &labels) {
+
+    std::vector<int> sortedLabels{labels};
+
+    std::sort(sortedLabels.begin(), sortedLabels.end());
+
+    return (std::adjacent_find(sortedLabels.begin(), sortedLabels.end()) != sortedLabels.end());
+}
+
+} //namespace
+
+CodingMatrix::CodingMatrix(MatrixData values, std::shared_ptr<const Field> field)
+    : Matrix(std::move(values)), field(std::move(field)) {}
+
+void CodingMatrix::checkParameters(int row, int column, const std::shared_ptr<const Field> &field) {
 
     if (field == nullptr)
         throw std::invalid_argument("The field cannot be null");
 
     if (row < 1 || column < 1)
         throw std::invalid_argument("The coding matrix must have at least one row and one column");
-
-    MatrixData values(row, std::vector<long>(column, 0));
-
-    for (int i = 0; i < row; i++) {
-        values[i][0] = 1;
-
-        for (int j = 1; j < column; j++)
-            values[i][j] = field->computePower(i + 1, j);
-    }
-
-    return (values);
 }
-
-} //namespace
-
-CodingMatrix::CodingMatrix(int row, int column, std::shared_ptr<const Field> field)
-    : Matrix(computeVandermondeValues(row, column, field)), field(std::move(field)) {}
 
 const std::shared_ptr<const Field> &CodingMatrix::getField() const {
     return (this->field);
+}
+
+MatrixData CodingMatrix::invertRows(const std::vector<int> &labels) const {
+
+    if (static_cast<int>(labels.size()) != this->getColumn())
+        throw std::invalid_argument("There must be exactly m labels, one for each column of the coding matrix!");
+
+    for (const int label : labels)
+        this->checkRowLabel(label);
+
+    //A row chosen twice gives a submatrix with two equal rows, whose determinant is zero.
+    if (hasRepeatedLabel(labels))
+        throw std::invalid_argument("The selected matrix is not invertible!");
+
+    return (this->computeInverseOfRows(labels));
 }
 
 } //namespace ida

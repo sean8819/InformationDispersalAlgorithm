@@ -16,7 +16,7 @@
 #include "Field/GaloisField256.h"
 #include "Field/PrimeField.h"
 #include "Ida/IDA.h"
-#include "Matrix/CodingMatrix.h"
+#include "Matrix/VandermondeMatrix.h"
 #include "Matrix/EncodedMatrix.h"
 #include "Matrix/InverseCodingMatrix.h"
 #include "Matrix/Matrix.h"
@@ -99,7 +99,7 @@ void checkEncodedValues(const ida::EncodedMatrix &C, const ida::Field &field, co
 
     const std::string description{fieldUnderTest.name + " n=" + std::to_string(counts.n) +
                                   " m=" + std::to_string(counts.m) + " length=" + std::to_string(data.length())};
-    const ida::CodingMatrix A{counts.n, counts.m, fieldUnderTest.field};
+    const ida::VandermondeMatrix A{counts.n, counts.m, fieldUnderTest.field};
     const ida::TextMatrix B{counts.m, data};
     const ida::IDA dispersal{counts.n, counts.m, fieldUnderTest.field};
     const std::unique_ptr<ida::EncodedMatrix> C{dispersal.encode(A, B)};

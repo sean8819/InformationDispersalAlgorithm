@@ -14,7 +14,7 @@
 #include "Field/GaloisField256.h"
 #include "Field/PrimeField.h"
 #include "Ida/IDA.h"
-#include "Matrix/CodingMatrix.h"
+#include "Matrix/VandermondeMatrix.h"
 #include "Matrix/TextMatrix.h"
 #include "TestUtil.h"
 
@@ -67,7 +67,7 @@ namespace {
                                                                const std::shared_ptr<const ida::Field> &field) {
 
     try {
-        const ida::CodingMatrix A{row, column, field};
+        const ida::VandermondeMatrix A{row, column, field};
     }
     catch (const std::invalid_argument &error) {
         return (error.what());

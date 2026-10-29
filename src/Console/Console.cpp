@@ -25,6 +25,7 @@
 #include "Ida/FieldProduct.h"
 #include "Ida/IDA.h"
 #include "Matrix/CodingMatrix.h"
+#include "Matrix/VandermondeMatrix.h"
 #include "Matrix/EncodedMatrix.h"
 #include "Matrix/InverseCodingMatrix.h"
 #include "Matrix/Matrix.h"
@@ -502,7 +503,7 @@ std::string Console::encodeAndDecode(const std::string &sentence) const {
 
     //The field is shared by the coding matrix, its inverse and the IDA object.
     const std::shared_ptr<const Field> field{createField(this->settings.fieldKind, this->settings.p)};
-    const CodingMatrix A{this->settings.n, this->settings.m, field};
+    const VandermondeMatrix A{this->settings.n, this->settings.m, field};
     const TextMatrix B{this->settings.m, codes};
     const IDA dispersal{this->settings.n, this->settings.m, field};
     const std::unique_ptr<EncodedMatrix> C{dispersal.encode(A, B)};

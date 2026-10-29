@@ -14,6 +14,13 @@ namespace ida {
 
 Matrix::Matrix(MatrixData values) : values(std::move(values)) {}
 
+void Matrix::checkRowLabel(int label) const {
+
+    //Every label must be the index of a row of this matrix.
+    if (label < 0 || label >= this->getRow())
+        throw std::out_of_range("Fragment label out of range!");
+}
+
 int Matrix::getRow() const {
     return (static_cast<int>(this->values.size()));
 }
@@ -35,11 +42,7 @@ MatrixData Matrix::selectRows(const std::vector<int> &labels) const {
     MatrixData selectedRows{};
 
     for (const int label : labels) {
-
-        //Every label must be the index of a row of this matrix.
-        if (label < 0 || label >= this->getRow())
-            throw std::out_of_range("Fragment label out of range!");
-
+        this->checkRowLabel(label);
         selectedRows.push_back(this->values[label]);
     }
 

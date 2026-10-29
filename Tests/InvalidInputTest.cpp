@@ -13,6 +13,7 @@
 #include "Field/PrimeField.h"
 #include "Ida/IDA.h"
 #include "Matrix/CodingMatrix.h"
+#include "Matrix/VandermondeMatrix.h"
 #include "Matrix/EncodedMatrix.h"
 #include "Matrix/InverseCodingMatrix.h"
 #include "Matrix/Matrix.h"
@@ -173,7 +174,7 @@ enum class Outcome {
  */
 void testInverseRejectsInvalidLabels() {
 
-    const ida::CodingMatrix A{4, 2, std::make_shared<ida::GaloisField256>()};
+    const ida::VandermondeMatrix A{4, 2, std::make_shared<ida::GaloisField256>()};
 
     check(tryCreateInverse(A, {0, 3}) == Outcome::Accepted, "the inverse accepts labels 0 and 3");
     check(tryCreateInverse(A, {0, 4}) == Outcome::OutOfRange, "the inverse rejects a label equal to n");
@@ -191,7 +192,7 @@ void testFragmentsRejectInvalidLabels() {
     const auto field{std::make_shared<ida::GaloisField256>()};
     const ida::IDA dispersal{4, 2, field};
     const std::unique_ptr<ida::EncodedMatrix> C{
-        dispersal.encode(ida::CodingMatrix{4, 2, field}, ida::TextMatrix{2, "abcdef"})};
+        dispersal.encode(ida::VandermondeMatrix{4, 2, field}, ida::TextMatrix{2, "abcdef"})};
 
     check(trySelectFragments(*C, {0, 3}) == Outcome::Accepted, "selectFragments accepts labels 0 and 3");
     check(trySelectFragments(*C, {0, 4}) == Outcome::OutOfRange, "selectFragments rejects a label equal to n");
@@ -216,17 +217,17 @@ void testEncodeRejectsInvalidMatrices() {
     const ida::TextMatrix B{2, "abcdef"};
     const ida::IDA dispersal{4, 2, field};
 
-    check(tryEncode(dispersal, ida::CodingMatrix{4, 2, field}, B) == Outcome::Accepted,
+    check(tryEncode(dispersal, ida::VandermondeMatrix{4, 2, field}, B) == Outcome::Accepted,
           "encode accepts a 4 x 2 coding matrix");
-    check(tryEncode(dispersal, ida::CodingMatrix{4, 2, std::make_shared<ida::PrimeField>(257)}, B) ==
+    check(tryEncode(dispersal, ida::VandermondeMatrix{4, 2, std::make_shared<ida::PrimeField>(257)}, B) ==
               Outcome::InvalidArgument,
           "encode rejects a coding matrix with a different field");
-    check(tryEncode(dispersal, ida::CodingMatrix{5, 2, field}, B) == Outcome::InvalidArgument,
+    check(tryEncode(dispersal, ida::VandermondeMatrix{5, 2, field}, B) == Outcome::InvalidArgument,
           "encode rejects a coding matrix with more than n rows");
-    check(tryEncode(dispersal, ida::CodingMatrix{4, 2, field}, ida::TextMatrix{3, "abcdef"}) ==
+    check(tryEncode(dispersal, ida::VandermondeMatrix{4, 2, field}, ida::TextMatrix{3, "abcdef"}) ==
               Outcome::InvalidArgument,
           "encode rejects a text matrix with a number of rows other than m");
-    check(tryComputeEncodingSteps(dispersal, ida::CodingMatrix{5, 2, field}, B) == Outcome::InvalidArgument,
+    check(tryComputeEncodingSteps(dispersal, ida::VandermondeMatrix{5, 2, field}, B) == Outcome::InvalidArgument,
           "computeEncodingSteps rejects a coding matrix with more than n rows");
 }
 
@@ -236,7 +237,7 @@ void testEncodeRejectsInvalidMatrices() {
 void testDecodeRejectsInvalidInverse() {
 
     const auto field{std::make_shared<ida::GaloisField256>()};
-    const ida::CodingMatrix A{4, 2, field};
+    const ida::VandermondeMatrix A{4, 2, field};
     const ida::IDA dispersal{4, 2, field};
     const std::unique_ptr<ida::EncodedMatrix> C{dispersal.encode(A, ida::TextMatrix{2, "abcdef"})};
     const std::vector<int> labels{0, 3};
@@ -244,19 +245,19 @@ void testDecodeRejectsInvalidInverse() {
     check(tryDecode(dispersal, ida::InverseCodingMatrix{A, labels}, *C) == Outcome::Accepted,
           "decode accepts the inverse for labels 0 and 3");
 
-    const ida::CodingMatrix otherA{4, 2, std::make_shared<ida::PrimeField>(257)};
+    const ida::VandermondeMatrix otherA{4, 2, std::make_shared<ida::PrimeField>(257)};
 
     check(tryDecode(dispersal, ida::InverseCodingMatrix{otherA, labels}, *C) == Outcome::InvalidArgument,
           "decode rejects an inverse with a different field");
 
     //The inverse must be m x m: a larger one would read outside the fragments matrix.
-    const ida::CodingMatrix wideA{4, 3, field};
+    const ida::VandermondeMatrix wideA{4, 3, field};
 
     check(tryDecode(dispersal, ida::InverseCodingMatrix{wideA, {0, 1, 3}}, *C) == Outcome::InvalidArgument,
           "decode rejects an inverse larger than m x m");
 
     //An inverse computed for a fragment that the encoded matrix does not have.
-    const ida::CodingMatrix tallA{5, 2, field};
+    const ida::VandermondeMatrix tallA{5, 2, field};
 
     check(tryDecode(dispersal, ida::InverseCodingMatrix{tallA, {0, 4}}, *C) == Outcome::OutOfRange,
           "decode rejects an inverse for a fragment that does not exist");

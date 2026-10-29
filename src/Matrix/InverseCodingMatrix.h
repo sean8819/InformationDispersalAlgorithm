@@ -21,9 +21,9 @@ class Field;
  * @brief Inverse of the coding submatrix, computed in the field of the coding matrix.
  *
  * The m x m submatrix is made of the coding matrix rows that match the
- * selected fragments. The inverse is computed with Gauss-Jordan elimination:
- * row operations turn the augmented matrix [A | I] into [I | A^-1], in
- * O(m^3) operations. Every operation is done in the field.
+ * selected fragments. The coding matrix computes the inverse with the method
+ * that suits it, such as Gauss-Jordan elimination for VandermondeMatrix.
+ * Every operation is done in the field.
  *
  * @invariant The matrix is square, with one row for each label, and the field is not null.
  */

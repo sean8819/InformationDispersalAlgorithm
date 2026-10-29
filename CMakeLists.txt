@@ -21,6 +21,8 @@ add_library(IDALibrary STATIC
         src/Matrix/TextMatrix.h
         src/Matrix/CodingMatrix.cpp
         src/Matrix/CodingMatrix.h
+        src/Matrix/VandermondeMatrix.cpp
+        src/Matrix/VandermondeMatrix.h
         src/Matrix/EncodedMatrix.cpp
         src/Matrix/EncodedMatrix.h
         src/Matrix/InverseCodingMatrix.cpp

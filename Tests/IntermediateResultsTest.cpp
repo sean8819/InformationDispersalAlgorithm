@@ -13,7 +13,7 @@
 #include "Ida/EncodingStep.h"
 #include "Ida/FieldProduct.h"
 #include "Ida/IDA.h"
-#include "Matrix/CodingMatrix.h"
+#include "Matrix/VandermondeMatrix.h"
 #include "Matrix/EncodedMatrix.h"
 #include "Matrix/InverseCodingMatrix.h"
 #include "Matrix/Matrix.h"
@@ -42,7 +42,7 @@ void testEncodingSteps() {
     const ida::IDA dispersal{4, 2, field};
 
     const std::vector<ida::EncodingStep> steps{
-        dispersal.computeEncodingSteps(ida::CodingMatrix{4, 2, field}, ida::TextMatrix{2, "hello!"})};
+        dispersal.computeEncodingSteps(ida::VandermondeMatrix{4, 2, field}, ida::TextMatrix{2, "hello!"})};
 
     //"hello!" in 2 rows, by column: h l o / e l !. Row 0 of A is (1, 1) and row 3 is (1, 4).
     check(steps.size() == 12, "one step for each value of the 4 x 3 encoded matrix");
@@ -61,7 +61,7 @@ void testEncodingSteps() {
 void testEncodingStepsMatchEncodedMatrix() {
 
     const auto field{std::make_shared<ida::GaloisField256>()};
-    const ida::CodingMatrix A{4, 2, field};
+    const ida::VandermondeMatrix A{4, 2, field};
     const ida::TextMatrix B{2, "hello!"};
     const ida::IDA dispersal{4, 2, field};
 
@@ -88,7 +88,7 @@ void testEncodingStepsMatchEncodedMatrix() {
 void testDecodedValues() {
 
     const auto field{std::make_shared<ida::GaloisField256>()};
-    const ida::CodingMatrix A{4, 2, field};
+    const ida::VandermondeMatrix A{4, 2, field};
     const ida::IDA dispersal{4, 2, field};
     const ida::InverseCodingMatrix inverse{A, {0, 3}};
 
