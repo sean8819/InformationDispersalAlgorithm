@@ -20,10 +20,11 @@ RUN cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
 #Run stage: only the program, on the same base image so the C++ runtime library matches the compiler.
 FROM ubuntu:24.04
 
-COPY --from=build /source/build/InformationDispersalAlgorithm /usr/local/bin/ida
+COPY --from=build /source/build/ida /usr/local/bin/ida
 
 #The program needs no privileges.
 RUN useradd --system --no-create-home ida
 USER ida
 
+#The console reads the lines typed by the user: run the container with docker run -it.
 ENTRYPOINT ["ida"]

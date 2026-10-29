@@ -5,9 +5,10 @@ IDA splits data into **n** fragments so that **any m** of them (m < n) are
 enough to rebuild the original. Up to n − m fragments can be lost and the data
 can still be recovered.
 
-The project shows the encoding and decoding steps in detail: with the detailed
-output chosen in `main.cpp`, it prints every intermediate matrix. It comes in
-two versions, which differ only in the finite field used for the arithmetic:
+The project shows the encoding and decoding steps in detail: an interactive
+console encodes and rebuilds the sentences you type and, with
+`set detail=all`, prints every intermediate matrix. It comes in two versions,
+which differ only in the finite field used for the arithmetic:
 
 - **GF(2^8)**, the Galois field with 256 elements. Every encoded value is a
   byte, so fragments can be written to a file as they are.
@@ -58,7 +59,7 @@ every non-zero a, so a⁻¹ = a^(q−2).
 │   └── QualityChecks.cmake           Compiler warnings and on-request checks
 ├── README.md
 ├── src
-│   ├── main.cpp                      Usage example: settings, output and error messages
+│   ├── main.cpp                      Reads the lines typed in the console, shows the errors
 │   ├── Field
 │   │   ├── Field.h / .cpp            Abstract base class: add, subtract, multiply,
 │   │   │                             computePower, computeInverse
@@ -70,10 +71,14 @@ every non-zero a, so a⁻¹ = a^(q−2).
 │   │   ├── CodingMatrix.h / .cpp     Vandermonde coding matrix (A)
 │   │   ├── EncodedMatrix.h / .cpp    Encoded fragments (C)
 │   │   └── InverseCodingMatrix.h / .cpp   Inverse of the coding submatrix (A′⁻¹)
-│   └── Ida
-│       ├── IDA.h / .cpp              Encoding and decoding
-│       ├── EncodingStep.h            How one value of C is computed
-│       └── FieldProduct.h            One product of the encoding
+│   ├── Ida
+│   │   ├── IDA.h / .cpp              Encoding and decoding
+│   │   ├── EncodingStep.h            How one value of C is computed
+│   │   └── FieldProduct.h            One product of the encoding
+│   └── Console
+│       ├── Console.h / .cpp          Commands and sentences typed in the console
+│       ├── Settings.h                Parameters of the console
+│       └── Latin1Converter.h / .cpp  UTF-8 text to one code from 0 to 255 per character
 └── Tests
     ├── TestUtil.h                    check() and report(), shared by the tests
     ├── FieldTest.cpp                 Arithmetic of both fields
@@ -81,12 +86,15 @@ every non-zero a, so a⁻¹ = a^(q−2).
     ├── InvalidInputTest.cpp          Invalid inputs are rejected with an exception
     ├── InvalidParameterTest.cpp      Invalid parameters are rejected with an exception
     ├── IntermediateResultsTest.cpp   Intermediate results exposed by IDA
-    ├── CheckProgramOutput.cmake      Runs the program and compares its output
-    └── ExpectedOutput.txt            Output of the program with the default settings
+    ├── Latin1ConverterTest.cpp       Conversion of the characters typed in the console
+    ├── ConsoleTest.cpp               Commands and sentences of the console
+    ├── CheckProgramOutput.cmake      Runs the program on an input file and compares its output
+    ├── ProgramInput.txt              Lines typed into the console by ProgramOutputTest
+    └── ExpectedOutput.txt            What the console prints for those lines
 ```
 
 Each folder under `src/` is a module, and each module only depends on the ones
-before it: `Field` → `Matrix` → `Ida` → `main.cpp`. Every include starts from
+before it: `Field` → `Matrix` → `Ida` → `Console` → `main.cpp`. Every include starts from
 `src/`, for example `#include "Field/Field.h"`. All the code is in the
 namespace `ida`.
 
@@ -95,17 +103,19 @@ operation through it. Adding a new field only takes a new subclass of `Field`.
 
 ## Output and errors
 
-The classes only compute: none of them prints. `main.cpp` prints the results
-and, with the detailed output, the intermediate ones, which `IDA` exposes:
+The classes of `Field`, `Matrix` and `Ida` only compute: none of them prints.
+`Console` turns the results into the text to show and, with the detailed
+output, the intermediate ones, which `IDA` exposes:
 
 - `computeEncodingSteps()` returns, for each value of C, the products
   A[i][k] · B[k][j] and their sum;
 - `computeDecodedValues()` returns the decoded matrix, padding included.
 
-An invalid parameter or input (for example m = 0, a modulus that is not
-prime, a fragment index outside the matrix) throws `std::invalid_argument`
-or `std::out_of_range` with a message. `main` catches it, prints the message
-on standard error and ends with `EXIT_FAILURE`.
+An invalid command, parameter or input (for example m = 0, a fragment index
+outside the matrix, a character with a code above 255) throws
+`std::invalid_argument` or `std::out_of_range` with a message. `main` catches
+it, prints `Error: ` and the message on standard error, and the console goes
+on with the next line.
 
 ## Memory management
 
@@ -113,7 +123,7 @@ No object is freed by hand: every allocation is owned by something that frees
 it automatically.
 
 - **Local objects** whenever an object does not leave its function, such as
-  `A`, `B`, `dispersal` and `inverse` in `main.cpp`. They need no allocation,
+  `A`, `B`, `dispersal` and `inverse` in `Console::encodeAndDecode()`. They need no allocation,
   they are destroyed at the end of the block, and they are used with the dot
   notation. `encode()` and `selectFragments()` also build their result as a
   local object and move it into a `std::unique_ptr` only when they return.
@@ -143,7 +153,7 @@ You need CMake 3.26 or later and a C++17 compiler.
 ```bash
 cmake -S . -B build
 cmake --build build
-./build/InformationDispersalAlgorithm
+./build/ida
 ```
 
 The compiler warnings are always on. The full verification (warnings as
@@ -161,11 +171,11 @@ every test while it is built, so it is produced only if all the tests pass.
 
 ```bash
 docker build -t ida .
-docker run --rm ida
+docker run --rm -it ida
 ```
 
-The settings are the ones in `src/main.cpp` (see [Configuration](#configuration)):
-after changing them, build the image again.
+`-it` connects the console to your terminal: without it the console gets no
+input and closes at once.
 
 ## Tests
 
@@ -192,34 +202,74 @@ ctest --test-dir build
 - **IntermediateResultsTest** checks the intermediate results that `IDA`
   exposes: the products and sums of the encoding, the decoded matrix and the
   padding.
-- **ProgramOutputTest** runs the program and checks that it prints exactly
-  `Tests/ExpectedOutput.txt` (the output with the default settings), nothing
-  on standard error, and ends with exit code 0.
+- **Latin1ConverterTest** checks that every character with a code from 0 to
+  255 becomes that single code and back, and that "€", emojis and byte
+  sequences that are not UTF-8 are rejected.
+- **ConsoleTest** checks the commands (help, set with every parameter, wrong
+  values), the sentences rebuilt with the default and the changed parameters,
+  and the sentences rejected because of a character or a parameter.
+- **ProgramOutputTest** types the lines of `Tests/ProgramInput.txt` into the
+  console (the sample sentence with the default parameters) and checks that
+  it prints exactly `Tests/ExpectedOutput.txt`, nothing on standard error, and
+  ends with exit code 0.
 
-## Configuration
+## Using the console
 
-The parameters are the default values of the `Settings` structure in
-`src/main.cpp`:
+`ida` starts with a help that lists every parameter with its current value,
+then shows the prompt `$> `. Each line is a command or a sentence:
 
-| Member         | Default                     | Meaning                                                  |
-|----------------|-----------------------------|----------------------------------------------------------|
-| `n`            | 4                           | Number of fragments generated                            |
-| `m`            | 2                           | Number of fragments needed for reconstruction            |
-| `p`            | 257                         | Prime modulus, used with `FieldKind::Prime`              |
-| `outputDetail` | `OutputDetail::ResultsOnly` | `OutputDetail::EveryStep` also prints every intermediate step |
-| `fieldKind`    | `FieldKind::Galois`         | `FieldKind::Galois` for GF(2^8), `FieldKind::Prime` for GF(p) |
-| `data`         | sample string               | Text to encode                                           |
-| `labels`       | `{0, 3}`                    | Fragments used for decoding (`std::vector` of m indices) |
+| Line                | Effect                                                                  |
+|---------------------|-------------------------------------------------------------------------|
+| `set n=6`           | Number of fragments generated (default 4)                               |
+| `set m=3`           | Number of fragments needed for reconstruction (default 2)               |
+| `set field=prime`   | `galois` for GF(2^8) (default), `prime` for GF(257)                     |
+| `set fragments=0,3` | The m fragments used for decoding (default 0,3)                         |
+| `set detail=all`    | `results` (default) or `all`, which also prints every intermediate step |
+| `help`              | Shows the help again, with the current values                           |
+| `exit`              | Closes the console, as Ctrl-D does                                      |
+| any other line      | A sentence, encoded and rebuilt with the current parameters             |
 
-The parameters must satisfy 1 ≤ m < n < number of elements of the field, so
-n is at most 255 for GF(2^8) and p − 1 for GF(p). p must be a prime of at
-least 257, so that every byte value is an element of the field. Otherwise the
-program stops with an error message.
+```
+$> set n=6
 
-With `OutputDetail::ResultsOnly`, the program prints the text, the encoded
-matrix, the decoded matrix and the rebuilt text. With `OutputDetail::EveryStep`,
-it also prints the character codes, every product of the encoding, the coding,
-text, inverse and fragment matrices.
+$> set m=3
+The fragments no longer fit n and m: fragments=0,1,2
+
+$> Perché però è così?
+
+Data: Perché però è così?
+
+Encoded matrix:
+ 71 226  53 160 171 240  63
+ 73  58  79  13  63  20  63
+...
+
+Rebuild data:
+Perché però è così?
+
+$> costa 5€
+Error: The character "€" at position 8 has the code 8364, outside the range 0-255
+```
+
+Spaces around `=` and after the commas are allowed. When n or m change and
+the fragments no longer fit (m indices from 0 to n − 1), they go back to the
+first m, and the console says so.
+
+`set` checks only the form of a value. Whether the parameters fit together is
+checked when a sentence is run: they must satisfy 1 ≤ m < n < number of
+elements of the field, so n is at most 255 for GF(2^8) and 256 for GF(257).
+
+With `detail=results`, the console prints the text, the encoded matrix, the
+decoded matrix and the rebuilt text. With `detail=all`, it also prints the
+character codes, every product of the encoding, the coding, text, inverse and
+fragment matrices. The values of a matrix are right-aligned in columns; a
+matrix wider than 80 characters is split into blocks of columns, each with a
+header such as `(columns 1-20 of 58)`.
+
+The console reads UTF-8 text. Each character becomes one value, its code, so
+the characters must have a code from 0 to 255: ASCII and the accented letters
+of Latin-1, such as è, à and ü, are accepted, while "€" and emojis are
+rejected with their position. The rebuilt text is converted back to UTF-8.
 
 ## Documentation
 

@@ -1,8 +1,9 @@
-#Runs the program and checks that it behaves exactly like the original one:
+#Runs the program with the lines of an input file and checks what it prints:
 #the expected text on stdout, byte for byte, nothing on stderr and exit code 0.
-#Usage: cmake -DPROGRAM=<executable> -DEXPECTED_OUTPUT=<file> -P CheckProgramOutput.cmake
+#Usage: cmake -DPROGRAM=<executable> -DPROGRAM_INPUT=<file> -DEXPECTED_OUTPUT=<file> -P CheckProgramOutput.cmake
 
 execute_process(COMMAND ${PROGRAM}
+        INPUT_FILE ${PROGRAM_INPUT}
         OUTPUT_VARIABLE actualOutput
         ERROR_VARIABLE actualErrors
         RESULT_VARIABLE exitCode)

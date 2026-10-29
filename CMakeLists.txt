@@ -29,12 +29,17 @@ add_library(IDALibrary STATIC
         src/Ida/EncodingStep.h
         src/Ida/IDA.cpp
         src/Ida/IDA.h
+        src/Console/Settings.h
+        src/Console/Latin1Converter.cpp
+        src/Console/Latin1Converter.h
+        src/Console/Console.cpp
+        src/Console/Console.h
 )
 #Every include starts from src/, e.g. #include "Field/Field.h".
 target_include_directories(IDALibrary PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 
-add_executable(InformationDispersalAlgorithm src/main.cpp)
-target_link_libraries(InformationDispersalAlgorithm IDALibrary)
+add_executable(ida src/main.cpp)
+target_link_libraries(ida IDALibrary)
 
 #Tests: run them with "ctest" from the build directory.
 enable_testing()
@@ -59,8 +64,17 @@ add_executable(InvalidParameterTest Tests/InvalidParameterTest.cpp)
 target_link_libraries(InvalidParameterTest IDALibrary)
 add_test(NAME InvalidParameterTest COMMAND InvalidParameterTest)
 
-#The program must print exactly what the original program printed (Tests/ExpectedOutput.txt).
+add_executable(Latin1ConverterTest Tests/Latin1ConverterTest.cpp)
+target_link_libraries(Latin1ConverterTest IDALibrary)
+add_test(NAME Latin1ConverterTest COMMAND Latin1ConverterTest)
+
+add_executable(ConsoleTest Tests/ConsoleTest.cpp)
+target_link_libraries(ConsoleTest IDALibrary)
+add_test(NAME ConsoleTest COMMAND ConsoleTest)
+
+#The console, fed with the lines of Tests/ProgramInput.txt, must print exactly Tests/ExpectedOutput.txt.
 add_test(NAME ProgramOutputTest
-        COMMAND ${CMAKE_COMMAND} -DPROGRAM=$<TARGET_FILE:InformationDispersalAlgorithm>
+        COMMAND ${CMAKE_COMMAND} -DPROGRAM=$<TARGET_FILE:ida>
+                -DPROGRAM_INPUT=${CMAKE_CURRENT_SOURCE_DIR}/Tests/ProgramInput.txt
                 -DEXPECTED_OUTPUT=${CMAKE_CURRENT_SOURCE_DIR}/Tests/ExpectedOutput.txt
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/Tests/CheckProgramOutput.cmake)
