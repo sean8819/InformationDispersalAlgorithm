@@ -147,7 +147,8 @@ int main() {
     const std::vector<std::string> texts{"Il barone Fanfulla da Lodi, condottier di gran rinomanza ...",
                                          "Hello, world!", "abcdefghij", "abcde", makeAllBytesText()};
 
-    const std::vector<FragmentCounts> parameters{{3, 1}, {4, 2}, {6, 3}, {10, 4}, {12, 5}};
+    //m = 12 needs an inverse in O(m^3) operations: a method with (m-1)! terms would take minutes for each one.
+    const std::vector<FragmentCounts> parameters{{3, 1}, {4, 2}, {6, 3}, {10, 4}, {12, 5}, {14, 12}};
 
     int decodings{0};
 

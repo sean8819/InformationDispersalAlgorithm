@@ -7,7 +7,10 @@
 
 #include "Matrix/InverseCodingMatrix.h"
 
+#include <cstddef>
 #include <stdexcept>
+#include <utility>
+#include <vector>
 
 #include "Field/Field.h"
 #include "Matrix/CodingMatrix.h"
@@ -17,117 +20,116 @@ namespace ida {
 namespace {
 
 /**
- * @brief Copies a square matrix without one of its rows and one of its columns.
+ * @brief Builds the augmented matrix [M | I]: each row of a square matrix followed by the same row of the identity.
  * @param matrix Square matrix.
- * @param removedRow Index of the row to leave out.
- * @param removedColumn Index of the column to leave out.
- * @return The (size - 1) x (size - 1) submatrix.
+ * @return The size x (2 · size) augmented matrix.
  */
-[[nodiscard]] MatrixData removeRowAndColumn(const MatrixData &matrix, int removedRow, int removedColumn) {
+[[nodiscard]] MatrixData appendIdentity(const MatrixData &matrix) {
 
     const int size{static_cast<int>(matrix.size())};
-    MatrixData subMatrix{};
+    const std::size_t width{2 * matrix.size()};
+    MatrixData augmented{matrix};
 
     for (int i = 0; i < size; i++) {
+        augmented[i].resize(width, 0);
+        augmented[i][size + i] = 1;
+    }
 
-        if (i == removedRow)
+    return (augmented);
+}
+
+/**
+ * @brief Finds the pivot of a column: the first row, from the diagonal down, with a non-zero value in that column.
+ * @param augmented Augmented matrix whose columns before @p column are already reduced.
+ * @param column Column to reduce.
+ * @return The index of the pivot row.
+ * @throws std::invalid_argument If the column holds only zeros from the diagonal down: the matrix is not invertible.
+ */
+[[nodiscard]] int findPivotRow(const MatrixData &augmented, int column) {
+
+    const int size{static_cast<int>(augmented.size())};
+
+    for (int row = column; row < size; row++)
+        if (augmented[row][column] != 0)
+            return (row);
+
+    throw std::invalid_argument("The selected matrix is not invertible!");
+}
+
+/**
+ * @brief Puts zero in a column on every row but the pivot row, by subtracting multiples of the pivot row.
+ * @param augmented Augmented matrix whose pivot row @p column has 1 on the diagonal.
+ * @param column Column to clear.
+ * @param field Field used for the arithmetic.
+ */
+void eliminateColumn(MatrixData &augmented, int column, const Field &field) {
+
+    const int size{static_cast<int>(augmented.size())};
+    const int width{static_cast<int>(augmented[column].size())};
+
+    for (int row = 0; row < size; row++) {
+        const long factor{augmented[row][column]};
+
+        if (row == column || factor == 0)
             continue;
 
-        std::vector<long> subRow{};
-
-        for (int j = 0; j < size; j++)
-            if (j != removedColumn)
-                subRow.push_back(matrix[i][j]);
-
-        subMatrix.push_back(subRow);
+        //row = row - factor · pivotRow: the value in the column becomes factor - factor · 1 = 0.
+        for (int j = 0; j < width; j++)
+            augmented[row][j] = field.subtract(augmented[row][j], field.multiply(factor, augmented[column][j]));
     }
-
-    return (subMatrix);
 }
 
 /**
- * @brief Computes the determinant by Laplace expansion along the first column.
- * @param matrix Square matrix.
+ * @brief Reduces a column: moves a pivot to the diagonal, scales the pivot row to get 1 there and clears the column.
+ * @param augmented Augmented matrix whose columns before @p column are already reduced.
+ * @param column Column to reduce.
  * @param field Field used for the arithmetic.
- * @return The determinant.
+ * @throws std::invalid_argument If the matrix is not invertible.
  */
-[[nodiscard]] long computeDeterminant(const MatrixData &matrix, const Field &field) {
+void reduceColumn(MatrixData &augmented, int column, const Field &field) {
 
-    const int size{static_cast<int>(matrix.size())};
+    std::swap(augmented[column], augmented[findPivotRow(augmented, column)]);
 
-    //The determinant of the empty (0 x 0) matrix is 1: it is the minor of a 1 x 1 matrix.
-    if (size == 0)
-        return (1);
+    const long pivotInverse{field.computeInverse(augmented[column][column])};
 
-    if (size == 1)
-        return (matrix[0][0]);
+    for (long &value : augmented[column])
+        value = field.multiply(value, pivotInverse);
 
-    if (size == 2)
-        return (field.subtract(field.multiply(matrix[1][1], matrix[0][0]), field.multiply(matrix[0][1], matrix[1][0])));
-
-    long determinant{0};
-
-    //The terms of the expansion have sign (-1)^row: the terms of the odd rows are subtracted.
-    for (int row = 0; row < size; row++) {
-        const long term{field.multiply(matrix[row][0], computeDeterminant(removeRowAndColumn(matrix, row, 0), field))};
-
-        if (row % 2 == 0)
-            determinant = field.add(determinant, term);
-        else
-            determinant = field.subtract(determinant, term);
-    }
-
-    return (determinant);
+    eliminateColumn(augmented, column, field);
 }
 
 /**
- * @brief Computes the adjugate matrix: the transpose of the matrix of the cofactors.
- * @param matrix Square matrix.
- * @param field Field used for the arithmetic.
- * @return The adjugate of @p matrix.
+ * @brief Copies the right half of an augmented matrix.
+ * @param augmented Augmented matrix with size rows and 2 · size columns.
+ * @return The size x size matrix made of the last size columns.
  */
-[[nodiscard]] MatrixData computeAdjugate(const MatrixData &matrix, const Field &field) {
+[[nodiscard]] MatrixData extractRightHalf(const MatrixData &augmented) {
 
-    const int size{static_cast<int>(matrix.size())};
-    MatrixData adjugate(size, std::vector<long>(size, 0));
+    const int size{static_cast<int>(augmented.size())};
+    MatrixData rightHalf{};
 
-    for (int i = 0; i < size; i++)
-        for (int j = 0; j < size; j++) {
-            const long minorOfElement{computeDeterminant(removeRowAndColumn(matrix, i, j), field)};
+    for (const std::vector<long> &row : augmented)
+        rightHalf.emplace_back(row.begin() + size, row.end());
 
-            //The cofactor is the minor with sign (-1)^(i+j): when i + j is odd, it is subtracted from zero.
-            //It goes to [j][i], because the adjugate is the transpose of the cofactor matrix.
-            if ((i + j) % 2 == 0)
-                adjugate[j][i] = minorOfElement;
-            else
-                adjugate[j][i] = field.subtract(0, minorOfElement);
-        }
-
-    return (adjugate);
+    return (rightHalf);
 }
 
 /**
- * @brief Inverts a square matrix with the adjugate method: A^-1 = det(A)^-1 · adj(A).
+ * @brief Inverts a square matrix with Gauss-Jordan elimination: row operations turn [M | I] into [I | M^-1].
  * @param matrix Square matrix.
  * @param field Field used for the arithmetic.
  * @return The inverse of @p matrix.
- * @throws std::invalid_argument If the determinant of @p matrix is zero.
+ * @throws std::invalid_argument If @p matrix is not invertible.
  */
 [[nodiscard]] MatrixData invert(const MatrixData &matrix, const Field &field) {
 
-    const long determinant{computeDeterminant(matrix, field)};
+    const int size{static_cast<int>(matrix.size())};
+    MatrixData augmented{appendIdentity(matrix)};
 
-    if (determinant == 0)
-        throw std::invalid_argument("The selected matrix is not invertible!");
+    for (int column = 0; column < size; column++)
+        reduceColumn(augmented, column, field);
 
-    const long determinantInverse{field.computeInverse(determinant)};
-    MatrixData inverse{computeAdjugate(matrix, field)};
-
-    for (std::vector<long> &row : inverse)
-        for (long &value : row)
-            value = field.multiply(value, determinantInverse);
-
-    return (inverse);
+    return (extractRightHalf(augmented));
 }
 
 /**
