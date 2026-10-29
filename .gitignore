@@ -3,8 +3,5 @@ build/
 build-*/
 cmake-build-*/
 
-# Personal files of JetBrains IDEs: the shared project settings in .idea/ stay versioned.
-.idea/workspace.xml
-.idea/tasks.xml
-.idea/usage.statistics.xml
-.idea/shelf/
+# Settings of JetBrains IDEs (CLion): they stay on each computer, out of the repository.
+.idea/
