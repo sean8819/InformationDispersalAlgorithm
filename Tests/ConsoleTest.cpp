@@ -119,7 +119,8 @@ void testWideMatricesAreSplitIntoBlocks() {
     const std::string output{execute(console, std::string(100, 'a'))};
 
     check(contains(output, "\nDecoded matrix:\n(columns 1-27 of 50)\n97 97 "), "the first block holds 27 columns");
-    check(contains(output, "\n(columns 28-50 of 50)\n97 97 "), "the second block holds the other 23 columns");
+    check(contains(output, " 97\n\n(columns 28-50 of 50)\n97 97 "),
+          "the second block holds the other 23 columns, after a blank line");
 
     std::istringstream lines{output};
     std::string line{};

@@ -303,6 +303,10 @@ constexpr int lineWidth{
     for (int firstColumn = 0; firstColumn < columns; firstColumn += columnsPerBlock) {
         const int endColumn{std::min(firstColumn + columnsPerBlock, columns)};
 
+        //A blank line keeps each block apart from the rows of the previous one.
+        if (firstColumn > 0)
+            text += "\n";
+
         if (columns > columnsPerBlock)
             text += "(columns " + std::to_string(firstColumn + 1) + "-" + std::to_string(endColumn) + " of " +
                     std::to_string(columns) + ")\n";
