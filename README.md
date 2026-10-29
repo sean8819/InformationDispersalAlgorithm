@@ -42,10 +42,11 @@ every non-zero a, so a⁻¹ = a^(q−2).
    Any m of its rows are linearly independent.
 3. **Encoding.** C = A · B. Each row of C is a fragment.
 4. **Decoding.** Pick any m fragments. The matching rows of A form a square
-   matrix A′, which is invertible. Its inverse is computed with the adjugate
-   matrix and the inverse of the determinant. Then B = A′⁻¹ · C′, where C′
-   holds the selected fragments. Removing the padding gives back the original
-   text.
+   matrix A′, which is invertible. Its inverse is computed with Gauss-Jordan
+   elimination: row operations in the field turn the augmented matrix
+   [A′ | I] into [I | A′⁻¹], in O(m³) operations. Then B = A′⁻¹ · C′, where
+   C′ holds the selected fragments. Removing the padding gives back the
+   original text.
 
 ## Project structure
 
@@ -177,7 +178,7 @@ ctest --test-dir build
   every non-zero element of both fields.
 - **RoundtripTest** encodes five texts, one of them with every byte value
   from 1 to 255, with both fields and (n, m) = (3, 1), (4, 2), (6, 3),
-  (10, 4), (12, 5). It decodes each one with every possible choice of m
+  (10, 4), (12, 5), (14, 12). It decodes each one with every possible choice of m
   fragments and checks that the original text comes back.
 - **InvalidInputTest** checks that invalid inputs are rejected with an
   exception instead of causing a memory error or a wrong result: fragment
@@ -238,9 +239,9 @@ Then run `doxygen`. The output is written to `html/`.
 This code is meant to explain how the algorithm works, so it does not follow
 every good software engineering practice. In particular:
 
-- Powers, inverses and determinants are computed in the simplest way
-  (repeated multiplication and Laplace expansion), which is slow for large
-  values of m.
+- Powers and the inverses of the field elements are computed in the
+  simplest way, by repeated multiplication, instead of with logarithm tables
+  or the extended Euclidean algorithm.
 
 ## Reference
 
